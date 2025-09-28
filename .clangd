@@ -1,0 +1,5 @@
+Index:
+  Background: Build
+
+CompileFlags:
+  Add: [-xc++, -Wall, -std=c++20]
