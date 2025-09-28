@@ -40,6 +40,7 @@ static void skip_comment(It& it, const It& end) {
             }
         }
     }
+#undef STEP
 }
 
 struct ParserBase {
