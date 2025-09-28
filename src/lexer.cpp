@@ -108,7 +108,7 @@ struct StringParser : ParserBase {
         return ++it;
     }
 
-    Token::Type token_type(std::string_view content) const {
+    Token::Type token_type([[maybe_unused]] std::string_view content) const {
         return Token::Type::STRCON;
     }
 };
