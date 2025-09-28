@@ -94,7 +94,7 @@ constexpr static std::string_view token_type_name_map[] = {
 #undef HANDLE_RESERVED_KEYWORD
 #undef HANDLE_DELIMITER_KEYWORDS
 
-[[nodiscard]] constexpr std::string_view token_type_name(Token::Type type) {
+[[nodiscard]] constexpr inline std::string_view token_type_name(Token::Type type) {
     assert(type != Token::Type::NONE);
     assert(type != Token::Type::ERROR);
     return token_type_name_map[static_cast<std::underlying_type_t<Token::Type>>(
