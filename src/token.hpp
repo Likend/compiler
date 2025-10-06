@@ -73,7 +73,10 @@ class Token {
 
     std::string_view content;
 
-    constexpr operator bool() const { return type == Token::Type::NONE; }
+    size_t line = 1;
+    size_t col = 1;
+
+    constexpr operator bool() const { return type != Token::Type::NONE; }
 };
 
 constexpr Token TokNone = {};

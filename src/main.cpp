@@ -1,4 +1,5 @@
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -26,23 +27,25 @@ int main() {
         // src->push_back('\0');
         Lexer lexer{*src};
         std::vector<Token> tokens;
-        bool error_flag = false;
+        Token error_tok;
         for (const Token& token : lexer) {
-            // std::cout << token.type << ' ' << token.content << std::endl;
+            std::cout << token.type << ' ' << token.line << ':' << token.col
+                      << ' ' << token.content << std::endl;
             if (token.type != Token::Type::COMMENT &&
                 token.type != Token::Type::WHITESPACE)
                 tokens.push_back(token);
             if (token.type == Token::Type::ERROR) {
-                error_flag = true;
+                error_tok = token;
                 break;
             }
         }
-        // std::cout << "================" << std::endl;
-        if (error_flag) {
-            std::cout << "2 a" << std::endl;
+        if (error_tok) {
+            std::ofstream output{"./error.txt", std::ios_base::out};
+            output << error_tok.line << ' ' << 'a' << std::endl;
         } else {
+            std::ofstream output{"./lexer.txt", std::ios_base::out};
             for (const Token& token : tokens) {
-                std::cout << token.type << ' ' << token.content << std::endl;
+                output << token.type << ' ' << token.content << std::endl;
             }
         }
     } else

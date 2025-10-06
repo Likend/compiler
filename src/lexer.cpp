@@ -275,27 +275,44 @@ using TokenMatcher =
     GeneralMatcher<WhiteSpaceMatcher, SlashMatcher, NumberMatcher, IdentMatcher,
                    StringMatcher, DelimiterMatcher>;
 
-Token Lexer::Iterator::get_token(It& it, std::string_view src) {
+static char get_next_char(It& it, const It& end, size_t& line, size_t& col) {
+    ++it;
+    if (it == end) {
+        return EOF;
+    }
+    char c = *it;
+    if (c == '\n') {
+        col = 0;
+        line++;
+    } else {
+        col++;
+    }
+    return c;
+}
+
+Token Lexer::get_token(It& it, size_t& line, size_t& col,
+                       std::string_view src) {
     It end = src.cend();
-    size_t first_pos = std::distance(src.cbegin(), it);
-    size_t cur_pos;
+    size_t begin_distance = std::distance(src.cbegin(), it);
+    size_t begin_line = line;
+    size_t begin_col = col;
     Token::Type tok_type;
     if (it != end) {
         if (TokenMatcher matcher; matcher.enter_condition(*it)) {
             do {
-                ++it;
-                char c = (it == end) ? EOF : *it;
+                char c = get_next_char(it, end, line, col);
                 tok_type = matcher.feed(c);
             } while (tok_type == Token::Type::NONE);
         } else {
-            ++it;
+            get_next_char(it, end, line, col);
             tok_type = Token::Type::ERROR;
         }
     } else {
         tok_type = Token::Type::NONE;
     }
 
-    cur_pos = std::distance(src.cbegin(), it);
-    std::string_view content = src.substr(first_pos, cur_pos - first_pos);
-    return {tok_type, content};
+    size_t end_distance = std::distance(src.cbegin(), it);
+    std::string_view content =
+        src.substr(begin_distance, end_distance - begin_distance);
+    return {tok_type, content, begin_line, begin_col};
 }
