@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+#ifndef DEBUG_TOKEN_TYPE_NAME
+#define DEBUG_TOKEN_TYPE_NAME
+#endif
 #include "lexer.hpp"
 #include "token.hpp"
 
@@ -20,16 +23,21 @@ int main() {
     std::optional<std::string> src = read_file();
     if (src) {
         // std::cout << *src << std::endl;
+        // src->push_back('\0');
         Lexer lexer{*src};
         std::vector<Token> tokens;
         bool error_flag = false;
         for (const Token& token : lexer) {
             // std::cout << token.type << ' ' << token.content << std::endl;
-            tokens.push_back(token);
+            if (token.type != Token::Type::COMMENT &&
+                token.type != Token::Type::WHITESPACE)
+                tokens.push_back(token);
             if (token.type == Token::Type::ERROR) {
                 error_flag = true;
+                break;
             }
         }
+        // std::cout << "================" << std::endl;
         if (error_flag) {
             std::cout << "2 a" << std::endl;
         } else {

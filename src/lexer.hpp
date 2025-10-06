@@ -7,9 +7,9 @@
 
 class Lexer {
    public:
-    explicit Lexer(std::string_view src) : src(src) {};
-    constexpr inline auto begin() const { return Iterator{src, src.cbegin()}; }
-    constexpr inline auto end() const { return Iterator{}; }
+    explicit constexpr Lexer(std::string_view src) : src(src) {};
+    inline auto begin() const { return Iterator{src, src.cbegin()}; }
+    inline auto end() const { return Iterator{}; }
 
    private:
     std::string_view src;
@@ -22,7 +22,9 @@ class Lexer {
         using difference_type = std::ptrdiff_t;
 
        private:
+        using It = std::string_view::const_iterator;
         std::string_view src;
+        It it = nullptr;
         Token tok;
 
         // size_t line;
@@ -31,33 +33,31 @@ class Lexer {
        public:
         constexpr Iterator() {};
 
-        constexpr Iterator(const std::string_view src,
-                           std::string_view::const_iterator start)
-            : src(src), tok(get_token(start)) {}
+        Iterator(const std::string_view src, It start)
+            : src(src), it(start), tok(get_next_token()) {}
 
-        constexpr inline Iterator(const Iterator& other) = default;
-        constexpr inline Iterator(Iterator&& other) = default;
+        inline Iterator(const Iterator& other) = default;
+        inline Iterator(Iterator&& other) = default;
 
-        constexpr inline Iterator& operator=(const Iterator&) = default;
-        constexpr inline Iterator& operator=(Iterator&&) = default;
+        inline Iterator& operator=(const Iterator&) = default;
+        inline Iterator& operator=(Iterator&&) = default;
 
-        [[nodiscard]] constexpr inline reference_type operator*()
-            const noexcept {
+        [[nodiscard]] inline reference_type operator*() const noexcept {
             return tok;
         }
 
-        constexpr inline Iterator& operator++() noexcept {
-            tok = get_token(tok.content.cend());
+        inline Iterator& operator++() noexcept {
+            tok = get_next_token();
             return *this;
         }
 
-        constexpr inline Iterator operator++(int) noexcept {
+        inline Iterator operator++(int) noexcept {
             auto temp = *this;
             ++(*this);
             return temp;
         }
 
-        constexpr inline bool operator==(const Iterator& other) const noexcept {
+        inline bool operator==(const Iterator& other) const noexcept {
             if (tok.type != other.tok.type) return false;
             if (tok.content.size() != other.tok.content.size()) return false;
             if (tok.content.size() == 0) {
@@ -66,13 +66,16 @@ class Lexer {
             return tok.content.data() == other.tok.content.data();
         }
 
-        constexpr inline bool operator!=(const Iterator& other) const noexcept {
+        inline bool operator!=(const Iterator& other) const noexcept {
             return !this->operator==(other);
         }
 
        private:
-        [[nodiscard]] Token get_token(
-            std::string_view::const_iterator pos) const;
+        [[nodiscard]] inline Token get_next_token() {
+            return get_token(it, src);
+        }
+
+        [[nodiscard]] static Token get_token(It& pos, std::string_view src);
     };
 
     // static_assert(std::forward_iterator<Iterator>); // C++20

@@ -2,196 +2,300 @@
 
 #include <cassert>
 #include <cctype>
-// #include <concepts>
 #include <iterator>
 #include <string_view>
+#include <variant>
+// #include <concepts>
 
 #include "token.hpp"
 
 using It = std::string_view::const_iterator;
 
-static void skip_whitespace(It& it) {
-    while (std::isspace(*it)) ++it;
-}
+enum class Result { CONTINUE, ACCEPT, REJECT };
 
-static void skip_comment(It& it, const It& end) {
-#define STEP                   \
-    do {                       \
-        ++it;                  \
-        if (it == end) return; \
-    } while (0)
+struct WhiteSpaceMatcher {
+    bool enter_condition(char c) { return std::isspace(c); }
 
-    assert(*it == '/');
-    STEP;
-    if (*it == '/') {
-        do {
-            STEP;
-        } while (*it != '\n');
-        STEP;  // skip \n
-    } else if (*it == '*') {
-        while (true) {
-            STEP;
-            if (*it == '*') {
-                STEP;
-                if (*it == '/') {
-                    STEP;
-                    break;
+    Token::Type feed(char c) {
+        return (std::isspace(c)) ? Token::Type::NONE : Token::Type::WHITESPACE;
+    }
+};
+
+struct SlashMatcher {
+    bool enter_condition(char c) { return c == '/'; }
+
+    Token::Type feed(char c) {
+        state = next_state(c, state);
+        switch (state) {
+            case State::COMMENT:
+                return Token::Type::COMMENT;
+            case State::DIV:
+                return Token::Type::DIV;
+            case State::ERROR:
+                return Token::Type::ERROR;
+            default:
+                return Token::Type::NONE;
+        }
+    }
+
+   private:
+    enum class State {
+        START,
+        SINGLE_LINE_BRACH,
+        MULTI_LINE_BRANCH,
+        WAIT_SLASH,
+        TO_COMMENT,
+        COMMENT,
+        ERROR,
+        DIV
+    } state = State::START;
+
+    static inline State next_state(char c, State state) {
+        switch (state) {
+            case State::START:
+                switch (c) {
+                    case '/':
+                        return State::SINGLE_LINE_BRACH;
+                    case '*':
+                        return State::MULTI_LINE_BRANCH;
+                    default:
+                        return State::DIV;
                 }
+            case State::SINGLE_LINE_BRACH:
+                switch (c) {
+                    case '\n':
+                        return State::TO_COMMENT;
+                    case EOF:
+                        return State::COMMENT;
+                    default:
+                        return State::SINGLE_LINE_BRACH;
+                }
+            case State::MULTI_LINE_BRANCH:
+                switch (c) {
+                    case '*':
+                        return State::WAIT_SLASH;
+                    case EOF:
+                        return State::ERROR;
+                    default:
+                        return State::MULTI_LINE_BRANCH;
+                }
+            case State::WAIT_SLASH:
+                switch (c) {
+                    case '/':
+                        return State::TO_COMMENT;
+                    case EOF:
+                        return State::ERROR;
+                    default:
+                        return State::MULTI_LINE_BRANCH;
+                }
+            case State::TO_COMMENT:
+                return State::COMMENT;
+            default:
+                assert(false);  // unreachable
+                return State::ERROR;
+        }
+    }
+};
+
+struct NumberMatcher {
+    bool enter_condition(char c) { return std::isdigit(c); }
+
+    Token::Type feed(char c) {
+        return std::isdigit(c) ? Token::Type::NONE : Token::Type::INTCON;
+    }
+};
+
+struct IdentMatcher {
+    bool enter_condition(char c) {
+        content.push_back(c);
+        return std::isalpha(c) || c == '_';
+    }
+
+    Token::Type feed(char c) {
+        if (std::isalnum(c) || c == '_') {
+            content.push_back(c);
+            return Token::Type::NONE;
+        } else {
+            if (auto find = reserved_keywords_map.find(content);
+                find != reserved_keywords_map.cend()) {
+                return find->second;
+            } else {
+                return Token::Type::IDENFR;
             }
         }
     }
-#undef STEP
-}
 
-struct ParserBase {
-    constexpr ParserBase(It it) : it(it) {}
-
-   protected:
-    It it;
+   private:
+    std::string content;
 };
 
-// template <typename T>
-// concept Parser = requires(It it) {
-//     { T{it} };
-// } && requires(const T t) {
-//     { t.first_condition() } -> std::same_as<bool>;
-// } && requires(T t) {
-//     { t.skip() } -> std::same_as<It>;
-// } && requires(const T t, std::string_view content) {
-//     { t.token_type(content) } -> std::same_as<Token::Type>;
-// };
+struct StringMatcher {
+    bool enter_condition(char c) { return c == '"'; }
 
-struct NumberParser : ParserBase {
-    [[nodiscard]] bool first_condition() const { return std::isdigit(*it); }
-
-    It skip() {
-        if (*it == '0') {
-            ++it;
-            return it;
+    Token::Type feed(char c) {
+        state = next_state(c, state);
+        switch (state) {
+            case State::END:
+                return Token::Type::STRCON;
+            case State::ERROR:
+                return Token::Type::ERROR;
+            default:
+                return Token::Type::NONE;
         }
-        do ++it;
-        while (std::isdigit(*it));
-        return it;
     }
 
-    Token::Type token_type([[maybe_unused]] std::string_view content) const {
-        return Token::Type::INTCON;
-    }
-};
+   private:
+    enum class State { START, TO_END, END, ERROR } state = State::START;
 
-struct IdentParser : ParserBase {
-    [[nodiscard]] bool first_condition() const {
-        return std::isalpha(*it) || *it == '_';
-    }
-
-    It skip() {
-        do ++it;
-        while (std::isalnum(*it) || *it == '_');
-        return it;
-    }
-
-    Token::Type token_type(std::string_view content) const {
-        if (auto res = reserved_keywords_map.find(content);
-            res != reserved_keywords_map.end())
-            return res->second;
-        else
-            return Token::Type::IDENFR;
-    }
-};
-
-struct StringParser : ParserBase {
-    [[nodiscard]] bool first_condition() const { return *it == '"'; }
-
-    It skip() {
-        do ++it;
-        while (*it != '"');
-        return ++it;
-    }
-
-    Token::Type token_type([[maybe_unused]] std::string_view content) const {
-        return Token::Type::STRCON;
-    }
-};
-
-struct DelimiterParser : ParserBase {
-    [[nodiscard]] bool first_condition() const { return true; }  // default case
-
-    It skip() {
-        const char first_char = *it;
-        ++it;
-        switch (first_char) {
-            case '!':  // '!' vs '!='
-            case '<':  // '<' vs '<='
-            case '>':  // '>' vs '>=
-            case '=':  // '=' vs '=='
-                if (*it == '=') ++it;
-                break;
-            case '&':  // '&' vs '&&'
-                if (*it == '&') ++it;
-                break;
-            case '|':  // '|' vs '||'
-                if (*it == '|') ++it;
-                break;
+    static State next_state(char c, State state) {
+        switch (state) {
+            case State::START:
+                return handle(c);
+            case State::TO_END:
+                return State::END;
+            case State::END:
+            case State::ERROR:
+                assert(false);  // unreachable
+                return State::ERROR;
         }
-        return it;
     }
 
-    Token::Type token_type(std::string_view content) const {
-        if (auto res = delimiter_keywords_map.find(content);
-            res != delimiter_keywords_map.end()) {
-            return res->second;
+    static inline State handle(char c) {
+        switch (c) {
+            case '"':
+                return State::TO_END;
+            case EOF:
+                return State::ERROR;
+            default:
+                return State::START;
+        }
+    }
+};
+
+struct DelimiterMatcher {
+    bool enter_condition(char c) {
+        content.reserve(3);
+        content.push_back(c);
+        state = handle_start(c);
+        return state != State::ERROR;
+    }
+
+    Token::Type feed(char c) {
+        state = next_state(c, state);
+        switch (state) {
+            case State::END:
+                if (auto find =
+                        delimiter_keywords_map.find(std::string_view(content));
+                    find != delimiter_keywords_map.cend()) {
+                    return find->second;
+                }  // else fall to error
+            case State::ERROR:
+                return Token::Type::ERROR;
+            default:
+                content.push_back(c);
+                return Token::Type::NONE;
+        }
+    }
+
+   private:
+    std::string content;
+
+    enum class State : char {
+        START,
+        TO_END,
+        END,
+        ERROR = -1,
+
+        WAIT_EQ = '=',
+        WAIT_AND = '&',
+        WAIT_OR = '|',
+    } state;
+
+    static inline State next_state(char c, State state) {
+        switch (state) {
+            case State::WAIT_EQ:
+            case State::WAIT_AND:
+            case State::WAIT_OR:
+                return handle_wait(c, static_cast<char>(state));
+            case State::TO_END:
+                return State::END;
+            default:
+                return State::ERROR;
+        }
+    }
+
+    static inline State handle_start(char c) {
+        // clang-format off
+        switch (c) {
+            case '!': case '<':
+            case '=': case '>':
+                return State::WAIT_EQ;
+            // single delimiter (except '/')
+            case '+': case '-': case '*': case '%':
+            case ',': case ';': case '(': case ')': 
+            case '[': case ']': case '{': case '}':
+                return State::TO_END;
+            case '&':
+                return State::WAIT_AND;
+            case '|':
+                return State::WAIT_OR;
+            default:
+                return State::ERROR;
+        }
+        // clang-format on
+    }
+
+    static inline State handle_wait(char c, char expect) {
+        return (c == expect) ? State::TO_END : State::END;
+    }
+};
+
+template <typename... Matcher>
+struct GeneralMatcher {
+    bool enter_condition(char c) { return (handle_first<Matcher>(c) || ...); }
+
+    Token::Type feed(char c) {
+        return std::visit([c](auto& matcher) { return matcher.feed(c); },
+                          state);
+    }
+
+   private:
+    std::variant<Matcher...> state;
+
+    template <typename M>
+    bool handle_first(char c) {
+        M matcher;
+        bool ret = matcher.enter_condition(c);
+        state = std::move(matcher);
+        return ret;
+    }
+};
+
+using TokenMatcher =
+    GeneralMatcher<WhiteSpaceMatcher, SlashMatcher, NumberMatcher, IdentMatcher,
+                   StringMatcher, DelimiterMatcher>;
+
+Token Lexer::Iterator::get_token(It& it, std::string_view src) {
+    It end = src.cend();
+    size_t first_pos = std::distance(src.cbegin(), it);
+    size_t cur_pos;
+    Token::Type tok_type;
+    if (it != end) {
+        if (TokenMatcher matcher; matcher.enter_condition(*it)) {
+            do {
+                ++it;
+                char c = (it == end) ? EOF : *it;
+                tok_type = matcher.feed(c);
+            } while (tok_type == Token::Type::NONE);
         } else {
-            return Token::Type::ERROR;
+            ++it;
+            tok_type = Token::Type::ERROR;
         }
+    } else {
+        tok_type = Token::Type::NONE;
     }
-};
 
-// static_assert(Parser<NumberParser>);
-// static_assert(Parser<IdentParser>);
-// static_assert(Parser<StringParser>);
-// static_assert(Parser<DelimiterParser>);
-
-// template <Parser... S>
-template <typename... S>
-Token parse_token(It it, std::string_view src) {
-    static_assert(sizeof...(S) >= 1);
-
-    size_t first = std::distance(src.cbegin(), it);
-    std::string_view content;
-
-    auto matcher = [first, src, &content](auto parser) -> Token::Type {
-        if (parser.first_condition()) {
-            It it = parser.skip();
-            size_t last = std::distance(src.cbegin(), it);
-            content = src.substr(first, last - first);
-            return parser.token_type(content);
-        }
-        return Token::Type::NONE;
-    };
-
-    Token::Type token_type;
-    (void)(((token_type = matcher(S{it})) != Token::Type::NONE) || ...);
-    return {token_type, content};
-}
-
-// Returns the next token from the input by skipping whitespace and comments,
-// then parsing the token using available parsers.
-Token Lexer::Iterator::get_token(It it) const {
-    while (true) {
-        skip_whitespace(it);
-
-        if (it == src.cend()) {
-            return {};
-        }
-        if (*it != '/') {
-            break;
-        }
-        skip_comment(it, src.cend());
-
-        if (it == src.cend()) {
-            return {};
-        }
-    }
-    return parse_token<NumberParser, IdentParser, StringParser,
-                       DelimiterParser>(it, src);
+    cur_pos = std::distance(src.cbegin(), it);
+    std::string_view content = src.substr(first_pos, cur_pos - first_pos);
+    return {tok_type, content};
 }
