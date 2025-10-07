@@ -89,6 +89,3 @@ std::ostream& operator<<(std::ostream& os, Token::Type type);
 
 extern const std::unordered_map<std::string_view, Token::Type>
     reserved_keywords_map;
-
-extern const std::unordered_map<std::string_view, Token::Type>
-    delimiter_keywords_map;
