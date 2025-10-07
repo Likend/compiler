@@ -11,8 +11,6 @@
 
 using It = std::string_view::const_iterator;
 
-enum class Result { CONTINUE, ACCEPT, REJECT };
-
 struct WhiteSpaceMatcher {
     bool enter_condition(char c) { return std::isspace(c); }
 
