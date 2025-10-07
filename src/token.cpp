@@ -1,27 +1,30 @@
 #include "token.hpp"
 
-const std::unordered_map<Token::Type, std::string_view> token_type_name_map = {
-#define HANDEL_CONSTANT_KEYWORD(X) {Token::Type::X, #X},
-#define HANDLE_RESERVED_KEYWORD(X, V) {Token::Type::X, #X},
-#define HANDLE_DELIMITER_KEYWORDS(X, V) {Token::Type::X, #X},
-    // clang-format off
-    EXPAND_CONSTANT_KEYWORDS
-    EXPAND_RESERVED_KEYWORDS
-    EXPAND_DELIMITER_KEYWORDS
-// clang-format on
+std::string_view token_type_name(Token::Type type) {
+    switch (type) {
+#define HANDEL_CONSTANT_KEYWORD(X) \
+    case Token::Type::X:           \
+        return #X;
+#define HANDLE_RESERVED_KEYWORD(X, V) \
+    case Token::Type::X:              \
+        return #X;
+#define HANDLE_DELIMITER_KEYWORDS(X, V) \
+    case Token::Type::X:                \
+        return #X;
+
+        EXPAND_CONSTANT_KEYWORDS
+        EXPAND_RESERVED_KEYWORDS
+        EXPAND_DELIMITER_KEYWORDS
+
 #undef HANDEL_CONSTANT_KEYWORD
 #undef HANDLE_RESERVED_KEYWORD
 #undef HANDLE_DELIMITER_KEYWORDS
-};
 
-std::string_view token_type_name(Token::Type type) {
-    assert(type != Token::Type::NONE);
-    assert(type != Token::Type::ERROR);
-    if (auto it = token_type_name_map.find(type);
-        it != token_type_name_map.end()) {
-        return it->second;
-    } else
-        return {};
+        case Token::Type::NONE:
+        case Token::Type::ERROR:
+            assert(false);
+            return {};
+    }
 }
 
 #define HANDLE_RESERVED_KEYWORD(X, V) {V, Token::Type::X},

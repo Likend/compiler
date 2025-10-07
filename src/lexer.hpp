@@ -81,6 +81,6 @@ class Lexer {
     };
     // static_assert(std::forward_iterator<Iterator>); // C++20
 
-    [[nodiscard]] Token get_token(It& pos, size_t& line, size_t& col,
+    [[nodiscard]] static Token get_token(It& pos, size_t& line, size_t& col,
                                   std::string_view src);
 };

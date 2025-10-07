@@ -40,7 +40,7 @@ class StringPool {
         };
 
         struct Eqaul {
-            using is_transparent = void;
+            // using is_transparent = void;
 
             Eqaul(const std::vector<char>& memory) : memory(std::ref(memory)) {}
 
