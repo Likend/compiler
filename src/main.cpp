@@ -36,6 +36,11 @@ int main() {
             }
         }
 
+        if (*it) {
+            std::cout << "Unexpected Token: " << (*it).type << " in "
+                      << (*it).line << ':' << (*it).col << std::endl;
+        }
+
         // std::vector<Token> tokens;
         // Token error_tok;
         // for (const Token& token : lexer) {

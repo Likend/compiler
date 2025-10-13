@@ -107,6 +107,7 @@ struct ParseNode {};
 
 template <Token::Type type>
 struct ParseToken {
+    template <bool strict = true>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
         const Token& token = *it;
         if (token.type == type) {
@@ -120,39 +121,54 @@ struct ParseToken {
 
 template <typename... Parser>
 struct Or {
+    template <bool strict = true>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        return (Parser{}(it, container) || ...);
+        return (Parser{}.template operator()<true>(it, container) || ...);
     }
 };
 
 template <typename... Parser>
 struct Concat {
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
+    template <bool strict = false>
+    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container);
+
+    template <>
+    bool operator()<true>(Lexer::iterator& it,
+                          std::vector<NodeType>& container) {
         Lexer::iterator it_packup = it;
         size_t original_size = container.size();
-        bool result = (Parser{}(it, container) && ...);
+        bool result =
+            (Parser{}.template operator()<true>(it, container) && ...);
         if (!result) {
             it = it_packup;
             container.resize(original_size);
         }
         return result;
     }
+
+    template <>
+    bool operator()<false>(Lexer::iterator& it,
+                           std::vector<NodeType>& container) {
+        return (Parser{}.template operator()<false>(it, container) && ...);
+    }
 };
 
 template <typename Parser>
 struct Optional {
+    template <bool strict = true>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        Parser{}(it, container);
+        Parser{}.template operator()<true>(it, container);
         return true;
     }
 };
 
 template <typename Parser>
 struct Several {
+    template <bool strict = true>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
         bool result;
         do {
-            result = Parser{}(it, container);
+            result = Parser{}.template operator()<true>(it, container);
         } while (result);
         return true;
     }
@@ -160,22 +176,25 @@ struct Several {
 
 template <ASTNode::Type type, typename Parser>
 struct Define {
+    template <bool strict = false>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        NodeType& node = container.emplace_back();
         auto& ast_node =
-            node.emplace<std::unique_ptr<ASTNode>>(std::make_unique<ASTNode>());
-        bool res = Parser{}(it, ast_node->children);
-        if (!res) {
-            container.pop_back();
-            return false;
+            container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
+                std::make_unique<ASTNode>());
+        bool res = Parser{}.template operator()<strict>(it, ast_node->children);
+        if constexpr (strict) {
+            if (!res) {
+                container.pop_back();
+                return false;
+            }
         }
         ast_node->type = type;
-        return true;
+        return res;
     }
 };
 
-#define DEFINE(type, definition)         \
-    template <>                          \
+#define DEFINE(type, definition)          \
+    template <>                           \
     struct ParseNode<ASTNode::Type::type> \
         : Define<ASTNode::Type::type, definition> {}
 
@@ -191,8 +210,9 @@ struct Define {
 DEFINE(COMP_UNIT, CONCAT(SEVERAL(NODE(DECL)), SEVERAL(NODE(FUNC_DEF)),
                          NODE(MAIN_FUNC_DEF)));
 DEFINE(DECL, OR(NODE(CONST_DECL), NODE(VAR_DECL)));
-DEFINE(CONST_DECL, CONCAT(TOKEN(CONSTTK), TOKEN(INTTK), NODE(CONST_DEF),
-                          SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_DEF)))));
+DEFINE(CONST_DECL,
+       CONCAT(TOKEN(CONSTTK), TOKEN(INTTK), NODE(CONST_DEF),
+              SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_DEF))), TOKEN(SEMICN)));
 DEFINE(CONST_DEF,
        CONCAT(TOKEN(IDENFR),
               OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP), TOKEN(RBRACK))),
@@ -252,10 +272,49 @@ DEFINE(L_VAL, CONCAT(TOKEN(IDENFR), OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(EXP),
 DEFINE(PRIMARY_EXP, OR(CONCAT(TOKEN(LPARENT), NODE(EXP), TOKEN(RPARENT)),
                        NODE(L_VAL), NODE(NUMBER)));
 DEFINE(NUMBER, TOKEN(INTCON));
-DEFINE(UNARY_EXP, OR(NODE(PRIMARY_EXP),
-                     CONCAT(TOKEN(IDENFR), TOKEN(LPARENT),
-                            OPTIONAL(NODE(FUNC_RPARAMS)), TOKEN(RPARENT)),
-                     CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))));
+
+// DEFINE(UNARY_EXP, OR(NODE(PRIMARY_EXP),
+//                      CONCAT(TOKEN(IDENFR), TOKEN(LPARENT),
+//                             OPTIONAL(NODE(FUNC_RPARAMS)), TOKEN(RPARENT)),
+//                      CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))));
+template <>
+struct ParseNode<ASTNode::Type::UNARY_EXP> {
+    template <bool strict = false>
+    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
+        switch ((*it).type) {
+            case Token::Type::INTCON:
+            case Token::Type::LPARENT:
+                return Define<ASTNode::Type::UNARY_EXP, NODE(PRIMARY_EXP)>{}
+                    .template operator()<strict>(it, container);
+            case Token::Type::PLUS:
+            case Token::Type::MINU:
+            case Token::Type::NOT:
+                return Define<ASTNode::Type::UNARY_EXP,
+                              CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))>{}
+                    .template operator()<strict>(it, container);
+            case Token::Type::IDENFR: {
+                Lexer::iterator branch = it;
+                ++branch;
+                switch ((*branch).type) {
+                    case Token::Type::LPARENT:
+                        return Define<ASTNode::Type::UNARY_EXP,
+                                      CONCAT(TOKEN(IDENFR), TOKEN(LPARENT),
+                                             OPTIONAL(NODE(FUNC_RPARAMS)),
+                                             TOKEN(RPARENT))>{}
+                            .template operator()<strict>(it, container);
+                    case Token::Type::LBRACK:
+                    default:
+                        return Define<ASTNode::Type::UNARY_EXP,
+                                      NODE(PRIMARY_EXP)>{}
+                            .template operator()<strict>(it, container);
+                }
+            }
+            default:
+                return false;
+        }
+    }
+};
+
 DEFINE(UNARY_OP, OR(TOKEN(PLUS), TOKEN(MINU), TOKEN(NOT)));
 DEFINE(FUNC_RPARAMS,
        CONCAT(NODE(EXP), SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP)))));
@@ -274,7 +333,7 @@ DEFINE(EQ_EXP, CONCAT(NODE(REL_EXP), SEVERAL(CONCAT(OR(TOKEN(EQL), TOKEN(NEQ)),
 DEFINE(LAND_EXP,
        CONCAT(NODE(EQ_EXP), SEVERAL(CONCAT(TOKEN(AND), NODE(EQ_EXP)))));
 DEFINE(LOR_EXP,
-       CONCAT(NODE(LOR_EXP), SEVERAL(CONCAT(TOKEN(OR), NODE(LOR_EXP)))));
+       CONCAT(NODE(LAND_EXP), SEVERAL(CONCAT(TOKEN(OR), NODE(LAND_EXP)))));
 DEFINE(CONST_EXP, NODE(ADD_EXP));
 
 std::unique_ptr<ASTNode> parse_grammer(Lexer::iterator& it) {
