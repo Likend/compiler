@@ -71,8 +71,8 @@ static inline State next_state(char c, State state) {
         case State::TO_COMMENT:
             return State::COMMENT;
         default:
-            assert(false);  // unreachable
-            return State::ERROR;
+            assert(false);
+            __builtin_unreachable();
     }
 }
 }  // namespace SlashMatcherImpl
@@ -126,7 +126,7 @@ Token::Type Lexer::IdentMatcher::feed(char c) {
 namespace StringMatcherImpl {
 enum class State : int32_t { START = 0, TO_END, END, ERROR };
 
-static inline State handle(char c) {
+static inline State handle_start(char c) {
     switch (c) {
         case '"':
             return State::TO_END;
@@ -140,13 +140,13 @@ static inline State handle(char c) {
 static State next_state(char c, State state) {
     switch (state) {
         case State::START:
-            return handle(c);
+            return handle_start(c);
         case State::TO_END:
             return State::END;
         case State::END:
         case State::ERROR:
-            assert(false);  // unreachable
-            return State::ERROR;
+            assert(false);
+            __builtin_unreachable();
     }
 }
 }  // namespace StringMatcherImpl
@@ -261,6 +261,6 @@ Token::Type Lexer::DelimiterMatcher::feed(char c) {
             return Token::Type::NONE;
         default:
             assert(false);
-            return Token::Type::NONE;
+            __builtin_unreachable();
     }
 }

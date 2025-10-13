@@ -2,7 +2,6 @@
 
 #include <cassert>
 #include <cctype>
-#include <functional>
 #include <iterator>
 #include <string_view>
 #include <variant>
@@ -12,8 +11,14 @@
 class Lexer {
    public:
     explicit constexpr Lexer(std::string_view src) : src(src) {};
-    inline auto begin() { return TokenIterator{*this, src, src.cbegin()}; }
-    inline auto end() { return TokenIterator{*this}; }
+
+   private:
+    class TokenIterator;
+
+   public:
+    using iterator = TokenIterator;
+    inline iterator begin() { return TokenIterator{src, src.cbegin()}; }
+    inline iterator end() { return TokenIterator{}; }
 
    private:
     using It = std::string_view::const_iterator;
@@ -24,10 +29,10 @@ class Lexer {
         using iterator_category = std::forward_iterator_tag;
         using value_type = Token;
         using reference_type = const value_type&;
-        //     using difference_type = std::ptrdiff_t;
+        // using difference_type = std::ptrdiff_t;
 
        private:
-        std::reference_wrapper<Lexer> lexer;
+        // Lexer* lexer;
         std::string_view src;
         It it;
         size_t col = 1;
@@ -35,13 +40,14 @@ class Lexer {
         Token tok;
 
        public:
-        TokenIterator(Lexer& lexer) : lexer(std::ref(lexer)) {}
+        TokenIterator() {}
 
-        TokenIterator(Lexer& lexer, std::string_view src, It start)
-            : lexer(std::ref(lexer)),
-              src(src),
-              it(start),
-              tok(get_next_token()) {}
+        TokenIterator(std::string_view src, It start) : src(src), it(start) {
+            do {
+                tok = get_next_token();
+            } while (tok.type == Token::Type::COMMENT ||
+                     tok.type == Token::Type::WHITESPACE);
+        }
 
         inline TokenIterator(const TokenIterator& other) = default;
         inline TokenIterator(TokenIterator&& other) = default;
@@ -54,7 +60,10 @@ class Lexer {
         }
 
         inline TokenIterator& operator++() noexcept {
-            tok = get_next_token();
+            do {
+                tok = get_next_token();
+            } while (tok.type == Token::Type::COMMENT ||
+                     tok.type == Token::Type::WHITESPACE);
             return *this;
         }
 
@@ -78,8 +87,7 @@ class Lexer {
         }
 
        private:
-        [[nodiscard]] inline Token get_next_token() {
-            // return lexer.get().get_token(it, line, col, src);
+        inline Token get_next_token() {
             It end = src.cend();
 
             auto get_next_char = [this, &end]() -> char {
