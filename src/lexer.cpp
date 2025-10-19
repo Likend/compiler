@@ -63,6 +63,8 @@ static inline State next_state(char c, State state) {
             switch (c) {
                 case '/':
                     return State::TO_COMMENT;
+                case '*':
+                    return State::WAIT_SLASH;
                 case EOF:
                     return State::ERROR;
                 default:
@@ -225,7 +227,7 @@ static inline Opt second_opt(char c, Opt opt) {
 }
 
 static constexpr int32_t from_str(const char* str) {
-    return static_cast<uint8_t>(str[0]) | static_cast<uint8_t>(str[1]) << 8;
+    return static_cast<uint8_t>(str[0]) | (static_cast<uint8_t>(str[1]) << 8);
 }
 }  // namespace DelimiterMatcherImpl
 

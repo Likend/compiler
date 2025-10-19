@@ -40,7 +40,7 @@ int main() {
             output << *ast;
         }
         if (*it) {
-            std::cout << "Unexpected Token: " << (*it).type << " in "
+            std::cerr << "Unexpected Token: " << (*it).type << " in "
                       << (*it).line << ':' << (*it).col << std::endl;
         }
     } else
