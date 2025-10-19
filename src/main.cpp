@@ -3,7 +3,6 @@
 #include <iostream>
 #include <optional>
 #include <string>
-#include <vector>
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
 #define DEBUG_TOKEN_TYPE_NAME
@@ -15,7 +14,7 @@
 std::optional<std::string> read_file() {
     std::ifstream file{"./testfile.txt"};
     if (file)
-        return std::string{(std::istreambuf_iterator<char>(file)),
+        return std::string{std::istreambuf_iterator<char>(file),
                            std::istreambuf_iterator<char>()};
     else
         return std::nullopt;
@@ -24,45 +23,26 @@ std::optional<std::string> read_file() {
 int main() {
     std::optional<std::string> src = read_file();
     if (src) {
-        // std::cout << *src << std::endl;
-        // src->push_back('\0');
         Lexer lexer{*src};
         auto it = lexer.begin();
         auto ast = parse_grammer(it);
 
-        if (ast) {
-            for (const auto& a : ast->children) {
-                std::cout << a;
+        if (error_infos.size()) {
+            std::cout << "Error count: " << error_infos.size() << std::endl;
+            // std::sort(error_infos.begin(), error_infos.end());
+            std::ofstream output{"./error.txt", std::ios_base::out};
+            for (auto& error : error_infos) {
+                output << error.line << ' ' << error.type << std::endl;
             }
         }
-
+        if (ast) {
+            std::ofstream output{"./parser.txt", std::ios_base::out};
+            output << *ast;
+        }
         if (*it) {
             std::cout << "Unexpected Token: " << (*it).type << " in "
                       << (*it).line << ':' << (*it).col << std::endl;
         }
-
-        // std::vector<Token> tokens;
-        // Token error_tok;
-        // for (const Token& token : lexer) {
-        //     std::cout << token.type << ' ' << token.line << ':' << token.col
-        //               << ' ' << token.content << std::endl;
-        //     if (token.type != Token::Type::COMMENT &&
-        //         token.type != Token::Type::WHITESPACE)
-        //         tokens.push_back(token);
-        //     if (token.type == Token::Type::ERROR) {
-        //         error_tok = token;
-        //         break;
-        //     }
-        // }
-        // if (error_tok) {
-        //     std::ofstream output{"./error.txt", std::ios_base::out};
-        //     output << error_tok.line << ' ' << 'a' << std::endl;
-        // } else {
-        //     std::ofstream output{"./lexer.txt", std::ios_base::out};
-        //     for (const Token& token : tokens) {
-        //         output << token.type << ' ' << token.content << std::endl;
-        //     }
-        // }
     } else
         std::cout << "Cannot open file!" << std::endl;
 

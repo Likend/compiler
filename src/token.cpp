@@ -23,7 +23,8 @@ std::string_view token_type_name(Token::Type type) {
         case Token::Type::NONE:
         case Token::Type::ERROR:
             assert(false);
-            __builtin_unreachable();
+            // __builtin_unreachable();
+            return "";
     }
 }
 

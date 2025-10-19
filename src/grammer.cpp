@@ -1,6 +1,10 @@
 #include "grammer.hpp"
 
 #include <memory>
+#include <ostream>
+#include <type_traits>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "lexer.hpp"
@@ -84,21 +88,37 @@ struct NodeTypeVisiter {
     NodeTypeVisiter(std::ostream& os) : os(os) {}
 
     void operator()(Token token) {
-        os << "Token: " << token.type << ' ' << token.content << std::endl;
+        os << token.type << ' ' << token.content << std::endl;
     }
 
     void operator()(const std::unique_ptr<ASTNode>& ast_node) {
-        os << "ASTNode: " << (*ast_node).type << std::endl;
-        for (const auto& i : (*ast_node).children) {
-            os << i;
-        }
+        os << *ast_node;
     }
 };
 
-std::ostream& operator<<(std::ostream& os, const ASTNode::NodeType& t) {
-    std::visit(NodeTypeVisiter{os}, t);
+std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
+#ifdef NDEBUG
+    for (const auto& i : node.children) {
+        std::visit(NodeTypeVisiter{os}, i);
+    }
+    os << '<' << node.type << '>' << std::endl;
     return os;
+#else
+    static uint32_t ident = 0;
+    os << '<' << node.type << '>' << std::endl;
+    ident++;
+    for (const auto& i : node.children) {
+        for (size_t i = 0; i < ident; i++) {
+            os << '\t';
+        }
+        std::visit(NodeTypeVisiter{os}, i);
+    }
+    ident--;
+    return os;
+#endif
 }
+
+std::vector<ErrorInfo> error_infos;
 
 using NodeType = ASTNode::NodeType;
 
@@ -114,8 +134,47 @@ struct ParseToken {
             container.emplace_back(token);
             ++it;
             return true;
-        } else
-            return false;
+        }
+        if (token.type == Token::Type::ERROR) {
+            if ((*token.content.data() == '&' && type == Token::Type::AND) ||
+                (*token.content.data() == '|' && type == Token::Type::OR)) {
+                error_infos.emplace_back(ErrorInfo{'a', token.line, token.col});
+                container.emplace_back(token);
+                ++it;
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+static const Token& find_last_token(const std::vector<NodeType>& container);
+struct FindLastTokenVisitor {
+    const Token& operator()(const std::unique_ptr<ASTNode>& ast_node) {
+        assert(!ast_node->children.empty());
+        return find_last_token(ast_node->children);
+    }
+    const Token& operator()(const Token& token) { return token; }
+};
+
+static const Token& find_last_token(const std::vector<NodeType>& container) {
+    const NodeType& last_node = container.back();
+    return std::visit(FindLastTokenVisitor{}, last_node);
+}
+
+template <Token::Type type, char error_type>
+struct ParseTokenRequired {
+    template <bool strict = true>
+    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
+        bool result =
+            ParseToken<type>{}.template operator()<true>(it, container);
+        const Token& last_token = find_last_token(container);
+        if (!result) {
+            error_infos.emplace_back(
+                ErrorInfo{error_type, last_token.line,
+                          last_token.col + last_token.content.size()});
+        }
+        return true;
     }
 };
 
@@ -130,11 +189,13 @@ struct Or {
 template <typename... Parser>
 struct Concat {
     template <bool strict = false>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container);
+    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
+        return invoke(it, container, std::integral_constant<bool, strict>{});
+    }
 
-    template <>
-    bool operator()<true>(Lexer::iterator& it,
-                          std::vector<NodeType>& container) {
+   private:
+    inline bool invoke(Lexer::iterator& it, std::vector<NodeType>& container,
+                       std::true_type) {
         Lexer::iterator it_packup = it;
         size_t original_size = container.size();
         bool result =
@@ -146,9 +207,8 @@ struct Concat {
         return result;
     }
 
-    template <>
-    bool operator()<false>(Lexer::iterator& it,
-                           std::vector<NodeType>& container) {
+    inline bool invoke(Lexer::iterator& it, std::vector<NodeType>& container,
+                       std::false_type) {
         return (Parser{}.template operator()<false>(it, container) && ...);
     }
 };
@@ -198,25 +258,27 @@ struct Define {
     struct ParseNode<ASTNode::Type::type> \
         : Define<ASTNode::Type::type, definition> {}
 
-// #define DECLARE(type, defination) \ template<> struct ParseNode<A
+#define ASSIGN(type, definition) \
+    template <>                  \
+    struct ParseNode<ASTNode::Type::type> : definition {}
 
 #define OR(...) Or<__VA_ARGS__>
 #define CONCAT(...) Concat<__VA_ARGS__>
 #define OPTIONAL(parser) Optional<parser>
 #define SEVERAL(parser) Several<parser>
 #define TOKEN(type) ParseToken<Token::Type::type>
+#define TOKEN_R(type, err) ParseTokenRequired<Token::Type::type, err>
 #define NODE(type) ParseNode<ASTNode::Type::type>
 
-DEFINE(COMP_UNIT, CONCAT(SEVERAL(NODE(DECL)), SEVERAL(NODE(FUNC_DEF)),
-                         NODE(MAIN_FUNC_DEF)));
-DEFINE(DECL, OR(NODE(CONST_DECL), NODE(VAR_DECL)));
-DEFINE(CONST_DECL,
-       CONCAT(TOKEN(CONSTTK), TOKEN(INTTK), NODE(CONST_DEF),
-              SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_DEF))), TOKEN(SEMICN)));
-DEFINE(CONST_DEF,
-       CONCAT(TOKEN(IDENFR),
-              OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP), TOKEN(RBRACK))),
-              TOKEN(ASSIGN), NODE(CONST_INIT_VAL)));
+DEFINE(COMP_UNIT, SEVERAL(OR(NODE(FUNC_DEF), NODE(MAIN_FUNC_DEF), NODE(DECL))));
+ASSIGN(DECL, OR(NODE(CONST_DECL), NODE(VAR_DECL)));
+DEFINE(CONST_DECL, CONCAT(TOKEN(CONSTTK), TOKEN(INTTK), NODE(CONST_DEF),
+                          SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_DEF))),
+                          TOKEN_R(SEMICN, 'i')));
+DEFINE(CONST_DEF, CONCAT(TOKEN(IDENFR),
+                         OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP),
+                                         TOKEN_R(RBRACK, 'k'))),
+                         TOKEN(ASSIGN), NODE(CONST_INIT_VAL)));
 DEFINE(
     CONST_INIT_VAL,
     OR(NODE(CONST_EXP),
@@ -224,13 +286,13 @@ DEFINE(
               OPTIONAL(CONCAT(NODE(CONST_EXP),
                               SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_EXP))))),
               TOKEN(RBRACE))));
-DEFINE(VAR_DECL,
-       CONCAT(OPTIONAL(TOKEN(STATICTK)), TOKEN(INTTK), NODE(VAR_DEF),
-              SEVERAL(CONCAT(TOKEN(COMMA), NODE(VAR_DEF))), TOKEN(SEMICN)));
-DEFINE(VAR_DEF,
-       CONCAT(TOKEN(IDENFR),
-              OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP), TOKEN(RBRACK))),
-              OPTIONAL(CONCAT(TOKEN(ASSIGN), NODE(INIT_VAL)))));
+DEFINE(VAR_DECL, CONCAT(OPTIONAL(TOKEN(STATICTK)), TOKEN(INTTK), NODE(VAR_DEF),
+                        SEVERAL(CONCAT(TOKEN(COMMA), NODE(VAR_DEF))),
+                        TOKEN_R(SEMICN, 'i')));
+DEFINE(VAR_DEF, CONCAT(TOKEN(IDENFR),
+                       OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP),
+                                       TOKEN_R(RBRACK, 'k'))),
+                       OPTIONAL(CONCAT(TOKEN(ASSIGN), NODE(INIT_VAL)))));
 DEFINE(INIT_VAL,
        OR(NODE(EXP),
           CONCAT(TOKEN(LBRACE),
@@ -239,102 +301,104 @@ DEFINE(INIT_VAL,
                  TOKEN(RBRACE))));
 DEFINE(FUNC_DEF,
        CONCAT(NODE(FUNC_TYPE), TOKEN(IDENFR), TOKEN(LPARENT),
-              OPTIONAL(NODE(FUNC_PARAMS)), TOKEN(RPARENT), NODE(BLOCK)));
+              OPTIONAL(NODE(FUNC_PARAMS)), TOKEN_R(RPARENT, 'j'), NODE(BLOCK)));
 DEFINE(MAIN_FUNC_DEF, CONCAT(TOKEN(INTTK), TOKEN(MAINTK), TOKEN(LPARENT),
-                             TOKEN(RPARENT), NODE(BLOCK)));
+                             TOKEN_R(RPARENT, 'j'), NODE(BLOCK)));
 DEFINE(FUNC_TYPE, OR(TOKEN(VOIDTK), TOKEN(INTTK)));
 DEFINE(FUNC_PARAMS, CONCAT(NODE(FUNC_PARAM),
                            SEVERAL(CONCAT(TOKEN(COMMA), NODE(FUNC_PARAM)))));
-DEFINE(FUNC_PARAM, CONCAT(TOKEN(INTTK), TOKEN(IDENFR),
-                          OPTIONAL(CONCAT(TOKEN(LBRACK), TOKEN(RBRACK)))));
+DEFINE(FUNC_PARAM,
+       CONCAT(TOKEN(INTTK), TOKEN(IDENFR),
+              OPTIONAL(CONCAT(TOKEN(LBRACK), TOKEN_R(RBRACK, 'k')))));
 DEFINE(BLOCK, CONCAT(TOKEN(LBRACE), SEVERAL(OR(NODE(DECL), NODE(STMT))),
                      TOKEN(RBRACE)));
-DEFINE(STMT, OR(CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP), TOKEN(SEMICN)),
-                CONCAT(OPTIONAL(NODE(EXP)), TOKEN(SEMICN)), NODE(BLOCK),
-                CONCAT(TOKEN(IFTK), TOKEN(LPARENT), NODE(COND), TOKEN(RPARENT),
-                       NODE(STMT), OPTIONAL(CONCAT(TOKEN(ELSETK), NODE(STMT)))),
-                CONCAT(TOKEN(FORTK), TOKEN(LPARENT), OPTIONAL(NODE(FOR_STMT)),
-                       TOKEN(SEMICN), OPTIONAL(NODE(COND)), TOKEN(SEMICN),
-                       OPTIONAL(NODE(FOR_STMT)), TOKEN(RPARENT), NODE(STMT)),
-                CONCAT(TOKEN(BREAKTK), TOKEN(SEMICN)),
-                CONCAT(TOKEN(CONTINUETK), TOKEN(SEMICN)),
-                CONCAT(TOKEN(RETURNTK), OPTIONAL(NODE(EXP))),
-                CONCAT(TOKEN(PRINTFTK), TOKEN(LPARENT), TOKEN(STRCON),
-                       SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP))), TOKEN(RPARENT),
-                       TOKEN(SEMICN))));
+DEFINE(STMT,
+       OR(CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP), TOKEN_R(SEMICN, 'i')),
+          CONCAT(NODE(EXP), TOKEN_R(SEMICN, 'i')), TOKEN(SEMICN), NODE(BLOCK),
+          CONCAT(TOKEN(IFTK), TOKEN(LPARENT), NODE(COND), TOKEN_R(RPARENT, 'j'),
+                 NODE(STMT), OPTIONAL(CONCAT(TOKEN(ELSETK), NODE(STMT)))),
+          CONCAT(TOKEN(FORTK), TOKEN(LPARENT), OPTIONAL(NODE(FOR_STMT)),
+                 TOKEN(SEMICN), OPTIONAL(NODE(COND)), TOKEN(SEMICN),
+                 OPTIONAL(NODE(FOR_STMT)), TOKEN_R(RPARENT, 'j'), NODE(STMT)),
+          CONCAT(TOKEN(BREAKTK), TOKEN_R(SEMICN, 'i')),
+          CONCAT(TOKEN(CONTINUETK), TOKEN_R(SEMICN, 'i')),
+          CONCAT(TOKEN(RETURNTK), OPTIONAL(NODE(EXP)), TOKEN_R(SEMICN, 'i')),
+          CONCAT(TOKEN(PRINTFTK), TOKEN(LPARENT), TOKEN(STRCON),
+                 SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP))),
+                 TOKEN_R(RPARENT, 'j'), TOKEN_R(SEMICN, 'i'))));
 DEFINE(FOR_STMT, CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP),
                         SEVERAL(CONCAT(TOKEN(COMMA), NODE(L_VAL), TOKEN(ASSIGN),
                                        NODE(EXP)))));
 DEFINE(EXP, NODE(ADD_EXP));
+DEFINE(CONST_EXP, NODE(ADD_EXP));
 DEFINE(COND, NODE(LOR_EXP));
 DEFINE(L_VAL, CONCAT(TOKEN(IDENFR), OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(EXP),
-                                                    TOKEN(RBRACK)))));
-DEFINE(PRIMARY_EXP, OR(CONCAT(TOKEN(LPARENT), NODE(EXP), TOKEN(RPARENT)),
+                                                    TOKEN_R(RBRACK, 'k')))));
+DEFINE(PRIMARY_EXP, OR(CONCAT(TOKEN(LPARENT), NODE(EXP), TOKEN_R(RPARENT, 'j')),
                        NODE(L_VAL), NODE(NUMBER)));
 DEFINE(NUMBER, TOKEN(INTCON));
+DEFINE(UNARY_EXP,
+       OR(CONCAT(TOKEN(IDENFR), TOKEN(LPARENT), OPTIONAL(NODE(FUNC_RPARAMS)),
+                 TOKEN_R(RPARENT, 'j')),
+          NODE(PRIMARY_EXP), CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))));
+DEFINE(UNARY_OP, OR(TOKEN(PLUS), TOKEN(MINU), TOKEN(NOT)));
+DEFINE(FUNC_RPARAMS,
+       CONCAT(NODE(EXP), SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP)))));
 
-// DEFINE(UNARY_EXP, OR(NODE(PRIMARY_EXP),
-//                      CONCAT(TOKEN(IDENFR), TOKEN(LPARENT),
-//                             OPTIONAL(NODE(FUNC_RPARAMS)), TOKEN(RPARENT)),
-//                      CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))));
-template <>
-struct ParseNode<ASTNode::Type::UNARY_EXP> {
+template <ASTNode::Type type, typename UpperParser, typename... OpParser>
+struct ParseBinExp {
+    // A -> B | A op B
     template <bool strict = false>
     bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        switch ((*it).type) {
-            case Token::Type::INTCON:
-            case Token::Type::LPARENT:
-                return Define<ASTNode::Type::UNARY_EXP, NODE(PRIMARY_EXP)>{}
-                    .template operator()<strict>(it, container);
-            case Token::Type::PLUS:
-            case Token::Type::MINU:
-            case Token::Type::NOT:
-                return Define<ASTNode::Type::UNARY_EXP,
-                              CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))>{}
-                    .template operator()<strict>(it, container);
-            case Token::Type::IDENFR: {
-                Lexer::iterator branch = it;
-                ++branch;
-                switch ((*branch).type) {
-                    case Token::Type::LPARENT:
-                        return Define<ASTNode::Type::UNARY_EXP,
-                                      CONCAT(TOKEN(IDENFR), TOKEN(LPARENT),
-                                             OPTIONAL(NODE(FUNC_RPARAMS)),
-                                             TOKEN(RPARENT))>{}
-                            .template operator()<strict>(it, container);
-                    case Token::Type::LBRACK:
-                    default:
-                        return Define<ASTNode::Type::UNARY_EXP,
-                                      NODE(PRIMARY_EXP)>{}
-                            .template operator()<strict>(it, container);
-                }
+        auto& ast_node =
+            container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
+                std::make_unique<ASTNode>());
+        ast_node->type = type;
+
+        // parse first B
+        bool result =
+            UpperParser{}.template operator()<strict>(it, ast_node->children);
+        if (!result) return false;
+
+        while (true) {
+            // parse token
+            std::vector<NodeType> new_container;
+            new_container.reserve(3);
+            auto& new_ast_node =
+                new_container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
+                    std::make_unique<ASTNode>());  // spare space for first B.
+            new_ast_node->type = type;
+
+            Lexer::iterator it_packup = it;
+            result = (OpParser{}.template operator()<true>(it, new_container) ||
+                      ...);
+            if (!result) return true;
+
+            result =
+                UpperParser{}.template operator()<strict>(it, new_container);
+            if (!result) {
+                it = it_packup;
+                return true;
             }
-            default:
-                return false;
+
+            // swap first A
+            new_ast_node->children = std::move(ast_node->children);
+            ast_node->children = std::move(new_container);
         }
     }
 };
 
-DEFINE(UNARY_OP, OR(TOKEN(PLUS), TOKEN(MINU), TOKEN(NOT)));
-DEFINE(FUNC_RPARAMS,
-       CONCAT(NODE(EXP), SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP)))));
-DEFINE(MUL_EXP, CONCAT(NODE(UNARY_EXP),
-                       SEVERAL(CONCAT(OR(TOKEN(MULT), TOKEN(DIV), TOKEN(MOD)),
-                                      NODE(UNARY_EXP)))));
-DEFINE(ADD_EXP,
-       CONCAT(NODE(MUL_EXP),
-              SEVERAL(CONCAT(OR(TOKEN(PLUS), TOKEN(MINU)), NODE(MUL_EXP)))));
-DEFINE(REL_EXP,
-       CONCAT(NODE(ADD_EXP),
-              SEVERAL(CONCAT(OR(TOKEN(LSS), TOKEN(LEQ), TOKEN(GRE), TOKEN(GEQ)),
-                             NODE(ADD_EXP)))));
-DEFINE(EQ_EXP, CONCAT(NODE(REL_EXP), SEVERAL(CONCAT(OR(TOKEN(EQL), TOKEN(NEQ)),
-                                                    NODE(REL_EXP)))));
-DEFINE(LAND_EXP,
-       CONCAT(NODE(EQ_EXP), SEVERAL(CONCAT(TOKEN(AND), NODE(EQ_EXP)))));
-DEFINE(LOR_EXP,
-       CONCAT(NODE(LAND_EXP), SEVERAL(CONCAT(TOKEN(OR), NODE(LAND_EXP)))));
-DEFINE(CONST_EXP, NODE(ADD_EXP));
+#define BINEXP(type, upper_parser, ...) \
+    ParseBinExp<ASTNode::Type::type, upper_parser, __VA_ARGS__>
+
+ASSIGN(MUL_EXP,
+       BINEXP(MUL_EXP, NODE(UNARY_EXP), TOKEN(MULT), TOKEN(DIV), TOKEN(MOD)));
+ASSIGN(ADD_EXP, BINEXP(ADD_EXP, NODE(MUL_EXP), TOKEN(PLUS), TOKEN(MINU)));
+ASSIGN(REL_EXP, BINEXP(REL_EXP, NODE(ADD_EXP), TOKEN(LSS), TOKEN(LEQ),
+                       TOKEN(GRE), TOKEN(GEQ)));
+ASSIGN(EQ_EXP, BINEXP(EQ_EXP, NODE(REL_EXP), TOKEN(EQL), TOKEN(NEQ)));
+ASSIGN(LAND_EXP, BINEXP(LAND_EXP, NODE(EQ_EXP), TOKEN(AND)));
+ASSIGN(LOR_EXP, BINEXP(LOR_EXP, NODE(LAND_EXP), TOKEN(OR)));
 
 std::unique_ptr<ASTNode> parse_grammer(Lexer::iterator& it) {
     std::vector<NodeType> temp;

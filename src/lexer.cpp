@@ -72,7 +72,8 @@ static inline State next_state(char c, State state) {
             return State::COMMENT;
         default:
             assert(false);
-            __builtin_unreachable();
+            // __builtin_unreachable();
+            return State::ERROR;
     }
 }
 }  // namespace SlashMatcherImpl
@@ -146,7 +147,8 @@ static State next_state(char c, State state) {
         case State::END:
         case State::ERROR:
             assert(false);
-            __builtin_unreachable();
+            // __builtin_unreachable();
+            return State::ERROR;
     }
 }
 }  // namespace StringMatcherImpl
@@ -261,6 +263,7 @@ Token::Type Lexer::DelimiterMatcher::feed(char c) {
             return Token::Type::NONE;
         default:
             assert(false);
-            __builtin_unreachable();
+            // __builtin_unreachable();
+            return Token::Type::NONE;
     }
 }

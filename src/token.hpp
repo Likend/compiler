@@ -71,7 +71,7 @@ class Token {
     } type = Token::Type::NONE;
     // clang-format on
 
-    std::string_view content;
+    std::string_view content = {};
 
     size_t line = 1;
     size_t col = 1;
