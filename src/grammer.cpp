@@ -1,14 +1,19 @@
 #include "grammer.hpp"
 
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "error.hpp"
 #include "lexer.hpp"
 #include "token.hpp"
+#include "util/assert.hpp"
 
 [[nodiscard]] std::string_view astnode_type_name(ASTNode::Type type) {
     switch (type) {
@@ -75,6 +80,7 @@
         case ASTNode::Type::CONST_EXP:
             return "ConstExp";
     }
+    UNREACHABLE();
 }
 
 std::ostream& operator<<(std::ostream& os, ASTNode::Type type) {
@@ -82,26 +88,42 @@ std::ostream& operator<<(std::ostream& os, ASTNode::Type type) {
     return os;
 }
 
-struct NodeTypeVisiter {
-    std::ostream& os;
-
-    NodeTypeVisiter(std::ostream& os) : os(os) {}
-
-    void operator()(Token token) {
-        os << token.type << ' ' << token.content << std::endl;
-    }
-
-    void operator()(const std::unique_ptr<ASTNode>& ast_node) {
-        os << *ast_node;
-    }
-};
-
 std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
+    struct NodeDumpVisitor {
+        std::ostream& os;
+        NodeDumpVisitor(std::ostream& os) : os(os) {}
+        void operator()(const Token& token) {
+            os << token.type << ' ' << token.content << std::endl;
+        }
+        void operator()(const std::unique_ptr<ASTNode>& ast_node) {
+            os << *ast_node;
+        }
+    };
+
 #ifdef NDEBUG
-    for (const auto& i : node.children) {
-        std::visit(NodeTypeVisiter{os}, i);
+    switch (node.type) {
+        // binary operations
+        case ASTNode::Type::MUL_EXP:
+        case ASTNode::Type::ADD_EXP:
+        case ASTNode::Type::REL_EXP:
+        case ASTNode::Type::EQ_EXP:
+        case ASTNode::Type::LAND_EXP:
+        case ASTNode::Type::LOR_EXP: {
+            bool odd_flag = true;
+            for (const auto& i : node.children) {
+                std::visit(NodeDumpVisitor{os}, i);
+                if (odd_flag) os << '<' << node.type << '>' << std::endl;
+
+                odd_flag = !odd_flag;
+            }
+            break;
+        }
+        default:
+            for (const auto& i : node.children) {
+                std::visit(NodeDumpVisitor{os}, i);
+            }
+            os << '<' << node.type << '>' << std::endl;
     }
-    os << '<' << node.type << '>' << std::endl;
     return os;
 #else
     static uint32_t ident = 0;
@@ -111,36 +133,71 @@ std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
         for (size_t i = 0; i < ident; i++) {
             os << '\t';
         }
-        std::visit(NodeTypeVisiter{os}, i);
+        std::visit(NodeDumpVisitor{os}, i);
     }
     ident--;
     return os;
 #endif
 }
 
-std::vector<ErrorInfo> error_infos;
+using Element = ASTNode::Element;
+using Map = ASTNode::Map;
 
-using NodeType = ASTNode::NodeType;
+struct ParserContext {
+    std::reference_wrapper<Lexer::iterator> it;
+    std::reference_wrapper<Map> container;
+    std::reference_wrapper<Token> last_token;
+    bool strict;
+
+    struct Marker {
+        Lexer::iterator it;
+        Map::ScopeMarker map_marker;
+        Token token_packup;
+    };
+
+    Marker save_marker() {
+        return {it, container.get().get_scope_marker(), last_token};
+    }
+
+    void reserve_marker(const Marker& marker) {
+        it.get() = marker.it;
+        container.get().pop_scope(marker.map_marker);
+        last_token.get() = marker.token_packup;
+    }
+
+    ParserContext update_container(Map& new_container) const {
+        return {it, new_container, last_token, strict};
+    }
+
+    ParserContext update_strict(bool new_strict) const {
+        return {it, container, last_token, new_strict};
+    }
+
+    ParserContext update_token(Token new_token) const {
+        return {it, container, new_token, strict};
+    }
+};
 
 template <ASTNode::Type type>
 struct ParseNode {};
 
 template <Token::Type type>
 struct ParseToken {
-    template <bool strict = true>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        const Token& token = *it;
+    bool operator()(ParserContext bundle) {
+        Token token = *bundle.it.get();
         if (token.type == type) {
-            container.emplace_back(token);
-            ++it;
+            bundle.container.get().insert(token);
+            ++bundle.it.get();
+            bundle.last_token.get() = token;
             return true;
         }
         if (token.type == Token::Type::ERROR) {
             if ((*token.content.data() == '&' && type == Token::Type::AND) ||
                 (*token.content.data() == '|' && type == Token::Type::OR)) {
                 error_infos.emplace_back(ErrorInfo{'a', token.line, token.col});
-                container.emplace_back(token);
-                ++it;
+                bundle.container.get().insert(token);
+                ++bundle.it.get();
+                bundle.last_token.get() = token;
                 return true;
             }
         }
@@ -148,31 +205,17 @@ struct ParseToken {
     }
 };
 
-static const Token& find_last_token(const std::vector<NodeType>& container);
-struct FindLastTokenVisitor {
-    const Token& operator()(const std::unique_ptr<ASTNode>& ast_node) {
-        assert(!ast_node->children.empty());
-        return find_last_token(ast_node->children);
-    }
-    const Token& operator()(const Token& token) { return token; }
-};
-
-static const Token& find_last_token(const std::vector<NodeType>& container) {
-    const NodeType& last_node = container.back();
-    return std::visit(FindLastTokenVisitor{}, last_node);
-}
-
 template <Token::Type type, char error_type>
 struct ParseTokenRequired {
-    template <bool strict = true>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        bool result =
-            ParseToken<type>{}.template operator()<true>(it, container);
-        const Token& last_token = find_last_token(container);
+    bool operator()(ParserContext bundle) {
+        bool result = ParseToken<type>{}(bundle.update_strict(true));
         if (!result) {
             error_infos.emplace_back(
-                ErrorInfo{error_type, last_token.line,
-                          last_token.col + last_token.content.size()});
+                ErrorInfo{error_type, bundle.last_token.get().line,
+                          bundle.last_token.get().col +
+                              bundle.last_token.get().content.size()});
+            bundle.container.get().insert(
+                Token{type, token_type_name(type), 0, 0});
         }
         return true;
     }
@@ -180,55 +223,52 @@ struct ParseTokenRequired {
 
 template <typename... Parser>
 struct Or {
-    template <bool strict = true>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        return (Parser{}.template operator()<true>(it, container) || ...);
+    bool operator()(ParserContext bundle) {
+        bundle.strict = true;
+        return (Parser{}(bundle) || ...);
     }
 };
 
 template <typename... Parser>
 struct Concat {
-    template <bool strict = false>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        return invoke(it, container, std::integral_constant<bool, strict>{});
+    bool operator()(ParserContext bundle) {
+        if (bundle.strict)
+            return invoke(bundle, std::true_type{});
+        else
+            return invoke(bundle, std::false_type{});
     }
 
    private:
-    inline bool invoke(Lexer::iterator& it, std::vector<NodeType>& container,
-                       std::true_type) {
-        Lexer::iterator it_packup = it;
-        size_t original_size = container.size();
-        bool result =
-            (Parser{}.template operator()<true>(it, container) && ...);
+    inline bool invoke(ParserContext bundle, std::true_type) {
+        auto marker = bundle.save_marker();
+        bool result = invoke(bundle, std::false_type{});
         if (!result) {
-            it = it_packup;
-            container.resize(original_size);
+            bundle.reserve_marker(marker);
         }
         return result;
     }
 
-    inline bool invoke(Lexer::iterator& it, std::vector<NodeType>& container,
-                       std::false_type) {
-        return (Parser{}.template operator()<false>(it, container) && ...);
+    inline bool invoke(ParserContext bundle, std::false_type) {
+        return (Parser{}(bundle) && ...);
     }
 };
 
 template <typename Parser>
 struct Optional {
-    template <bool strict = true>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        Parser{}.template operator()<true>(it, container);
+    bool operator()(ParserContext bundle) {
+        bundle.strict = true;
+        Parser{}(bundle);
         return true;
     }
 };
 
 template <typename Parser>
 struct Several {
-    template <bool strict = true>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
+    bool operator()(ParserContext bundle) {
+        bundle.strict = true;
         bool result;
         do {
-            result = Parser{}.template operator()<true>(it, container);
+            result = Parser{}(bundle);
         } while (result);
         return true;
     }
@@ -236,19 +276,12 @@ struct Several {
 
 template <ASTNode::Type type, typename Parser>
 struct Define {
-    template <bool strict = false>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        auto& ast_node =
-            container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
-                std::make_unique<ASTNode>());
-        bool res = Parser{}.template operator()<strict>(it, ast_node->children);
-        if constexpr (strict) {
-            if (!res) {
-                container.pop_back();
-                return false;
-            }
+    bool operator()(ParserContext bundle) {
+        auto ast_node = std::make_unique<ASTNode>(type);
+        bool res = Parser{}(bundle.update_container(ast_node->children));
+        if (res) {
+            bundle.container.get().insert(std::move(ast_node));
         }
-        ast_node->type = type;
         return res;
     }
 };
@@ -348,63 +381,45 @@ DEFINE(FUNC_RPARAMS,
 template <ASTNode::Type type, typename UpperParser, typename... OpParser>
 struct ParseBinExp {
     // A -> B | A op B
-    template <bool strict = false>
-    bool operator()(Lexer::iterator& it, std::vector<NodeType>& container) {
-        auto& ast_node =
-            container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
-                std::make_unique<ASTNode>());
-        ast_node->type = type;
-
+    bool operator()(ParserContext bundle) {
         // parse first B
-        bool result =
-            UpperParser{}.template operator()<strict>(it, ast_node->children);
+        bool result = UpperParser{}(bundle);
         if (!result) return false;
 
         while (true) {
-            // parse token
-            std::vector<NodeType> new_container;
-            new_container.reserve(3);
-            auto& new_ast_node =
-                new_container.emplace_back().emplace<std::unique_ptr<ASTNode>>(
-                    std::make_unique<ASTNode>());  // spare space for first B.
-            new_ast_node->type = type;
+            auto marker = bundle.save_marker();
 
-            Lexer::iterator it_packup = it;
-            result = (OpParser{}.template operator()<true>(it, new_container) ||
-                      ...);
-            if (!result) return true;
+            result = (OpParser{}(bundle.update_strict(true)) || ...);
+            if (!result) break;
 
-            result =
-                UpperParser{}.template operator()<strict>(it, new_container);
+            result = UpperParser{}(bundle);
+
             if (!result) {
-                it = it_packup;
-                return true;
+                bundle.reserve_marker(marker);
+                break;
             }
-
-            // swap first A
-            new_ast_node->children = std::move(ast_node->children);
-            ast_node->children = std::move(new_container);
         }
+        return true;
     }
 };
 
 #define BINEXP(type, upper_parser, ...) \
     ParseBinExp<ASTNode::Type::type, upper_parser, __VA_ARGS__>
 
-ASSIGN(MUL_EXP,
+DEFINE(MUL_EXP,
        BINEXP(MUL_EXP, NODE(UNARY_EXP), TOKEN(MULT), TOKEN(DIV), TOKEN(MOD)));
-ASSIGN(ADD_EXP, BINEXP(ADD_EXP, NODE(MUL_EXP), TOKEN(PLUS), TOKEN(MINU)));
-ASSIGN(REL_EXP, BINEXP(REL_EXP, NODE(ADD_EXP), TOKEN(LSS), TOKEN(LEQ),
+DEFINE(ADD_EXP, BINEXP(ADD_EXP, NODE(MUL_EXP), TOKEN(PLUS), TOKEN(MINU)));
+DEFINE(REL_EXP, BINEXP(REL_EXP, NODE(ADD_EXP), TOKEN(LSS), TOKEN(LEQ),
                        TOKEN(GRE), TOKEN(GEQ)));
-ASSIGN(EQ_EXP, BINEXP(EQ_EXP, NODE(REL_EXP), TOKEN(EQL), TOKEN(NEQ)));
-ASSIGN(LAND_EXP, BINEXP(LAND_EXP, NODE(EQ_EXP), TOKEN(AND)));
-ASSIGN(LOR_EXP, BINEXP(LOR_EXP, NODE(LAND_EXP), TOKEN(OR)));
+DEFINE(EQ_EXP, BINEXP(EQ_EXP, NODE(REL_EXP), TOKEN(EQL), TOKEN(NEQ)));
+DEFINE(LAND_EXP, BINEXP(LAND_EXP, NODE(EQ_EXP), TOKEN(AND)));
+DEFINE(LOR_EXP, BINEXP(LOR_EXP, NODE(LAND_EXP), TOKEN(OR)));
 
-std::unique_ptr<ASTNode> parse_grammer(Lexer::iterator& it) {
-    std::vector<NodeType> temp;
-    bool result = ParseNode<ASTNode::Type::COMP_UNIT>{}(it, temp);
-    if (!result) return nullptr;
-    NodeType& node = temp.at(0);
-    auto& ast = std::get<std::unique_ptr<ASTNode>>(node);
-    return std::move(ast);
+std::optional<Map> parse_grammer(Lexer::iterator& it) {
+    Map ret;
+    Token none;
+    bool result = ParseNode<ASTNode::Type::COMP_UNIT>{}(
+        ParserContext{it, ret, none, false});
+    if (!result) return std::nullopt;
+    return ret;
 }

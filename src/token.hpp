@@ -79,7 +79,7 @@ class Token {
     constexpr operator bool() const { return type != Token::Type::NONE; }
 };
 
-constexpr Token TokNone = {};
+// constexpr Token TokNone = {};
 
 #ifdef DEBUG_TOKEN_TYPE_NAME
 [[nodiscard]] std::string_view token_type_name(Token::Type type);

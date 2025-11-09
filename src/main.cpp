@@ -7,6 +7,7 @@
 #ifndef DEBUG_TOKEN_TYPE_NAME
 #define DEBUG_TOKEN_TYPE_NAME
 #endif
+#include "error.hpp"
 #include "grammer.hpp"
 #include "lexer.hpp"
 #include "token.hpp"
@@ -25,7 +26,8 @@ int main() {
     if (src) {
         Lexer lexer{*src};
         auto it = lexer.begin();
-        auto ast = parse_grammer(it);
+        auto map = parse_grammer(it);
+        const auto ast = map->get(ASTNode::Type::COMP_UNIT);
 
         if (error_infos.size()) {
             std::cout << "Error count: " << error_infos.size() << std::endl;

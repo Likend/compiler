@@ -1,5 +1,8 @@
 #include "token.hpp"
 
+#include "util/assert.hpp"
+
+
 std::string_view token_type_name(Token::Type type) {
     switch (type) {
 #define HANDEL_CONSTANT_KEYWORD(X) \
@@ -22,10 +25,9 @@ std::string_view token_type_name(Token::Type type) {
 
         case Token::Type::NONE:
         case Token::Type::ERROR:
-            assert(false);
-            // __builtin_unreachable();
-            return "";
+            UNREACHABLE();
     }
+    UNREACHABLE();
 }
 
 #define HANDLE_RESERVED_KEYWORD(X, V) {V, Token::Type::X},

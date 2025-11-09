@@ -1,13 +1,18 @@
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string_view>
+#include <utility>
 #include <variant>
-#include <vector>
 
 #include "lexer.hpp"
 #include "token.hpp"
+#include "util/scope_hash_set.hpp"
+
+struct ASTNode;
 
 struct ASTNode {
     enum class Type : int {
@@ -44,48 +49,158 @@ struct ASTNode {
         CONST_EXP,
     } type;
 
-    using NodeType = std::variant<std::unique_ptr<ASTNode>, Token>;
+    ASTNode() = default;
+    ASTNode(Type type) : type(type) {};
 
-    std::vector<NodeType> children;
+    using Element = std::variant<std::unique_ptr<ASTNode>, Token>;
 
-    inline auto begin() { return children.begin(); }
-    inline auto end() { return children.end(); }
-};
+    // Warper for ScopeHashSet<Element, MapHash, MapPred>
+    class Map {
+       private:
+        using ElementKey = std::variant<ASTNode::Type, Token::Type>;
 
-struct ErrorInfo {
-    char type;
-    size_t line;
-    size_t col;
-
-    inline bool operator==(const ErrorInfo& other) const {
-        return type == other.type && line == other.line && col == other.col;
-    }
-
-    inline bool operator<(const ErrorInfo& other) const {
-        if (line < other.line)
-            return true;
-        else if (line == other.line) {
-            if (col < other.col)
-                return true;
-            else if ((col == other.col) && (type < other.type))
-                return true;
+        static inline ElementKey element_key(const Element& element) {
+            struct ElementToKeyVisitor {
+                ElementKey operator()(const std::unique_ptr<ASTNode>& node) {
+                    return node->type;
+                }
+                ElementKey operator()(const Token& token) { return token.type; }
+            };
+            return std::visit(ElementToKeyVisitor{}, element);
         }
-        return false;
-    }
-};
 
-namespace std {
-template <>
-struct hash<ErrorInfo> {
-    size_t operator()(const ErrorInfo& info) const {
-        return std::hash<char>{}(info.type) ^
-               (std::hash<size_t>{}(info.line) < 1) ^
-               (std::hash<size_t>{}(info.col) < 2);
-    }
-};
-}  // namespace std
+        struct MapHash {
+            size_t operator()(const ElementKey& key) const {
+                return std::hash<ElementKey>{}(key);
+            }
+            size_t operator()(const Element& child_node) const {
+                return this->operator()(element_key(child_node));
+            }
+        };
 
-extern std::vector<ErrorInfo> error_infos;
+        struct MapPred {
+            bool operator()(const ElementKey& a, const ElementKey& b) const {
+                return a == b;
+            }
+            bool operator()(const ElementKey& a, const Element& b) const {
+                return this->operator()(a, element_key(b));
+            }
+            bool operator()(const Element& a, const ElementKey& b) const {
+                return this->operator()(element_key(a), b);
+            }
+            bool operator()(const Element& a, const Element& b) const {
+                return this->operator()(element_key(a), element_key(b));
+            }
+        };
+
+        using SetType = ScopeHashSet<Element, MapHash, MapPred>;
+        SetType set;
+
+       public:
+        size_t size() const { return set.size(); }
+        bool empty() const { return set.empty(); }
+
+        void insert(Element value) { set.insert(std::move(value)); }
+
+        template <typename... Args>
+        void emplace_back(Args&&... args) {
+            return set.emplace_back(std::forward<Args>(args)...);
+        }
+
+        using ScopeMarker = SetType::ScopeMarker;
+        ScopeMarker get_scope_marker() const { return set.get_scope_marker(); }
+        void pop_scope(ScopeMarker marker) { set.pop_scope(marker); }
+
+        using iterator = SetType::iterator;
+        iterator begin() const { return set.begin(); }
+        iterator end() const { return set.end(); }
+
+        const Token* get(Token::Type type) const {
+            if (auto it = set.find(ElementKey{type}); it != set.end())
+                return &std::get<Token>(*it);
+            else
+                return nullptr;
+        }
+
+        const ASTNode* get(ASTNode::Type type) const {
+            if (auto it = set.find(ElementKey{type}); it != set.end())
+                return std::get<std::unique_ptr<ASTNode>>(*it).get();
+            else
+                return nullptr;
+        }
+
+        struct TokenEqualRange {
+            SetType::EqualRange<ElementKey> inner_range;
+            struct iterator {
+                SetType::EqualRange<ElementKey>::iterator inner_it;
+
+                const Token& operator*() const {
+                    return std::get<Token>(*inner_it);
+                }
+                iterator& operator++() {
+                    ++inner_it;
+                    return *this;
+                }
+                iterator operator++(int) {
+                    auto temp = *this;
+                    ++(*this);
+                    return temp;
+                }
+                bool operator==(const iterator& other) const noexcept {
+                    return inner_it == other.inner_it;
+                }
+                bool operator!=(const iterator& other) const noexcept {
+                    return !this->operator==(other);
+                }
+            };
+
+            iterator begin() const { return {inner_range.begin()}; }
+            iterator end() const { return {inner_range.end()}; }
+        };
+
+        struct ASTNodeEqualRange {
+            SetType::EqualRange<ElementKey> inner_range;
+            struct iterator {
+                SetType::EqualRange<ElementKey>::iterator inner_it;
+
+                const ASTNode& operator*() const {
+                    return *std::get<std::unique_ptr<ASTNode>>(*inner_it);
+                }
+                iterator& operator++() {
+                    ++inner_it;
+                    return *this;
+                }
+                iterator operator++(int) {
+                    auto temp = *this;
+                    ++(*this);
+                    return temp;
+                }
+                bool operator==(const iterator& other) const noexcept {
+                    return inner_it == other.inner_it;
+                }
+                bool operator!=(const iterator& other) const noexcept {
+                    return !this->operator==(other);
+                }
+            };
+
+            iterator begin() const { return {inner_range.begin()}; }
+            iterator end() const { return {inner_range.end()}; }
+        };
+
+        TokenEqualRange equal_range(Token::Type type) const {
+            return {set.equal_range(ElementKey{type})};
+        }
+        ASTNodeEqualRange equal_range(ASTNode::Type type) const {
+            return {set.equal_range(ElementKey{type})};
+        }
+    };
+
+    Map children;
+
+    using iterator = Map::iterator;
+    iterator begin() { return children.begin(); }
+    iterator end() { return children.end(); }
+};
 
 #ifdef DEBUG_TOKEN_TYPE_NAME
 [[nodiscard]] std::string_view astnode_type_name(ASTNode::Type type);
@@ -94,4 +209,4 @@ std::ostream& operator<<(std::ostream& os, ASTNode::Type type);
 #endif
 std::ostream& operator<<(std::ostream& os, const ASTNode& t);
 
-std::unique_ptr<ASTNode> parse_grammer(Lexer::iterator& it);
+std::optional<ASTNode::Map> parse_grammer(Lexer::iterator& it);

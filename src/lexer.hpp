@@ -1,10 +1,8 @@
 #pragma once
 
 #include <cassert>
-#include <cctype>
 #include <iterator>
 #include <string_view>
-#include <variant>
 
 #include "token.hpp"
 
@@ -87,113 +85,7 @@ class Lexer {
         }
 
        private:
-        inline Token get_next_token() {
-            It end = src.cend();
-
-            auto get_next_char = [this, &end]() -> char {
-                ++it;
-                if (it == end) return EOF;
-                char c = *it;
-                if (c == '\n') {
-                    col = 0;
-                    line++;
-                } else
-                    col++;
-                return c;
-            };
-
-            size_t begin_distance = std::distance(src.cbegin(), it);
-            size_t begin_line = line;
-            size_t begin_col = col;
-            Token::Type tok_type;
-            if (it != end) {
-                if (TokenMatcher matcher; matcher.enter_condition(*it)) {
-                    do {
-                        char c = get_next_char();
-                        tok_type = matcher.feed(c);
-                    } while (tok_type == Token::Type::NONE);
-                } else {
-                    get_next_char();
-                    tok_type = Token::Type::ERROR;
-                }
-            } else {
-                tok_type = Token::Type::NONE;
-            }
-
-            size_t end_distance = std::distance(src.cbegin(), it);
-            std::string_view content =
-                src.substr(begin_distance, end_distance - begin_distance);
-            return {tok_type, content, begin_line, begin_col};
-        }
+        Token get_next_token();
     };
     // static_assert(std::forward_iterator<Iterator>); // C++20
-
-    struct WhiteSpaceMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-    };
-
-    struct SlashMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-
-       private:
-        int32_t state = 0;
-    };
-
-    struct NumberMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-    };
-
-    struct IdentMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-
-       private:
-        std::string content;
-    };
-
-    struct StringMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-
-       private:
-        int32_t state = 0;
-    };
-
-    struct DelimiterMatcher {
-        bool enter_condition(char);
-        Token::Type feed(char);
-
-       private:
-        int32_t state = 0;
-    };
-
-    template <typename... Matcher>
-    struct GeneralMatcher {
-        bool enter_condition(char c) {
-            return (handle_first<Matcher>(c) || ...);
-        }
-
-        Token::Type feed(char c) {
-            return std::visit([c](auto& matcher) { return matcher.feed(c); },
-                              state);
-        }
-
-       private:
-        std::variant<Matcher...> state;
-
-        template <typename M>
-        bool handle_first(char c) {
-            M matcher;
-            bool ret = matcher.enter_condition(c);
-            state = std::move(matcher);
-            return ret;
-        }
-    };
-
-    using TokenMatcher =
-        GeneralMatcher<WhiteSpaceMatcher, SlashMatcher, NumberMatcher,
-                       IdentMatcher, StringMatcher, DelimiterMatcher>;
 };
