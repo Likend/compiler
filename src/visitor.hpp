@@ -15,8 +15,9 @@ struct SymbolRecord {
     SymbolAttr attr;
 };
 
-struct FunctionScopeInfo {
-    SymbolBaseType return_type;
+struct ScopeInfo {
+    SymbolBaseType return_type = SymbolBaseType::INT;
+    bool in_for_loop = false;
 };
 
 struct EvalOption {
@@ -46,8 +47,8 @@ class Visitor {
     void invoke_var_init_val(const ASTNode& node,
                              bool const_flag);  // INIT_VAL and CONST_INIT_VAL
 
-    void invoke_block(const ASTNode& node);
-    void invoke_stmt(const ASTNode& node);
+    void invoke_block(const ASTNode& node, ScopeInfo scope_info);
+    void invoke_stmt(const ASTNode& node, ScopeInfo scope_info);
     void invoke_for_stmt(const ASTNode& node);
 
     EvalResult invoke_exp(const ASTNode& node,
@@ -90,7 +91,4 @@ class Visitor {
     size_t new_define_scope = 1;
     std::stack<size_t> scope_stack;
     SymbolTable symbol_table;
-
-    std::optional<FunctionScopeInfo> function_info = std::nullopt;
-    bool in_loop = false;
 };

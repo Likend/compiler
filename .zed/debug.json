@@ -1,0 +1,10 @@
+[
+  {
+    "label": "GDB Debug",
+    "cwd": "./build",
+    "program": "compiler.exe",
+    "request": "launch",
+    "adapter": "GDB",
+    "build": "CMake build debug"
+  }
+]

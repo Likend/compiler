@@ -2,7 +2,6 @@
 
 #include "util/assert.hpp"
 
-
 std::string_view token_type_name(Token::Type type) {
     switch (type) {
 #define HANDEL_CONSTANT_KEYWORD(X) \

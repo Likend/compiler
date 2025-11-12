@@ -250,7 +250,7 @@ struct DelimiterMatcher {
                 return WAIT_EQ;
             // single delimiter (except '/')
             case '+': case '-': case '*': case '%':
-            case ',': case ';': case '(': case ')': 
+            case ',': case ';': case '(': case ')':
             case '[': case ']': case '{': case '}':
                 return TO_END;
             case '&':

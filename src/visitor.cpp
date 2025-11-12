@@ -178,16 +178,16 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         UNEXPECTED_TYPE(node.type);
     }
 
-    function_info = std::make_optional(FunctionScopeInfo{});
+    ScopeInfo scope_info = {};
     if (main_func) {
-        function_info->return_type = SymbolBaseType::INT;
+        scope_info.return_type = SymbolBaseType::INT;
     } else {
         auto func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
         ASSERT(func_type);
         if (func_type->children.get(Token::Type::INTTK)) {
-            function_info->return_type = SymbolBaseType::INT;
+            scope_info.return_type = SymbolBaseType::INT;
         } else if (func_type->children.get(Token::Type::VOIDTK)) {
-            function_info->return_type = SymbolBaseType::VOID;
+            scope_info.return_type = SymbolBaseType::VOID;
         } else {
             UNREACHABLE();
         }
@@ -196,9 +196,9 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     if (!main_func) {
         auto ident = node.children.get(Token::Type::IDENFR);
         ASSERT(ident);
-        auto fill_back_handler =
-            add_symbol(*ident, SymbolAttr{}.set_function().set_base_type(
-                                   function_info->return_type));
+        auto fill_back_handler = add_symbol(
+            *ident,
+            SymbolAttr{}.set_function().set_base_type(scope_info.return_type));
 
         push_scope();
         if (auto func_params = node.children.get(ASTNode::Type::FUNC_PARAMS);
@@ -209,7 +209,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
                 fill_back_attr(fill_back_handler.value(),
                                SymbolAttr{}
                                    .set_function(std::move(params_eval))
-                                   .set_base_type(function_info->return_type));
+                                   .set_base_type(scope_info.return_type));
             }
         }
     } else {
@@ -219,7 +219,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     auto block = node.children.get(ASTNode::Type::BLOCK);
     ASSERT(block);
 
-    invoke_block(*block);
+    invoke_block(*block, scope_info);
     pop_scope();
 }
 
@@ -254,7 +254,7 @@ SymbolAttr Visitor::invoke_func_param(const ASTNode& node) {
 }
 
 // 语句块 Block -> '{' { Decl | Stmt } '}'
-void Visitor::invoke_block(const ASTNode& node) {
+void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
     ASSERT_AST_TYPE(BLOCK, node);
 
     const ASTNode* last_stmt = nullptr;
@@ -264,7 +264,7 @@ void Visitor::invoke_block(const ASTNode& node) {
                 block_item->get()->type == ASTNode::Type::VAR_DECL) {
                 invoke_var_decl(**block_item);
             } else if (block_item->get()->type == ASTNode::Type::STMT) {
-                invoke_stmt(**block_item);
+                invoke_stmt(**block_item, scope_info);
                 last_stmt = block_item->get();
             } else {
                 UNEXPECTED_TYPE(block_item->get()->type);
@@ -272,7 +272,7 @@ void Visitor::invoke_block(const ASTNode& node) {
         }
     }
 
-    if (function_info->return_type == SymbolBaseType::INT &&
+    if (scope_info.return_type == SymbolBaseType::INT &&
         symbol_table.current_scope_level() == 1) {
         // current_scope_level 限制只能为函数定义的block内
         bool has_last_return =
@@ -315,7 +315,7 @@ static size_t count_specifiers(std::string_view strcon) {
 //             l
 //             m
 //             h
-void Visitor::invoke_stmt(const ASTNode& node) {
+void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     ASSERT_AST_TYPE(STMT, node);
 
     // LVal '=' Exp ';'
@@ -342,7 +342,7 @@ void Visitor::invoke_stmt(const ASTNode& node) {
         invoke_cond(*cond);
 
         for (auto& stmt : node.children.equal_range(ASTNode::Type::STMT)) {
-            invoke_stmt(stmt);
+            invoke_stmt(stmt, scope_info);
         }
     };
 
@@ -391,20 +391,17 @@ void Visitor::invoke_stmt(const ASTNode& node) {
         if (cond) invoke_cond(*cond);
         if (for_stmt2) invoke_for_stmt(*for_stmt2);
 
-        bool prev_in_loop = in_loop;
-        in_loop = true;
-        invoke_stmt(*stmt);
-        in_loop = prev_in_loop;
+        scope_info.in_for_loop = true;
+        invoke_stmt(*stmt, scope_info);
     };
 
     // Error type: m 在非循环块中使 用break和continue语句
     //               报错行号为 ‘break’ 与 ’continue’ 所在行号。
     auto inner_invoke_break_continue = [&](const Token& break_continue_tok) {
-        if (in_loop) return;
-
-        // else
-        error_infos.emplace_back(
-            ErrorInfo{'m', break_continue_tok.line, break_continue_tok.col});
+        if (!scope_info.in_for_loop) {
+            error_infos.emplace_back(ErrorInfo{'m', break_continue_tok.line,
+                                               break_continue_tok.col});
+        }
     };
 
     // 'return' [Exp] ';'
@@ -412,7 +409,7 @@ void Visitor::invoke_stmt(const ASTNode& node) {
     auto inner_invoke_return_stmt = [&](const Token& return_tok) {
         if (auto exp = node.children.get(ASTNode::Type::EXP)) {
             invoke_exp(*exp);
-            if (function_info->return_type == SymbolBaseType::VOID) {
+            if (scope_info.return_type == SymbolBaseType::VOID) {
                 // 无返回值的函数 存在不匹配的 return语句
                 // 报错行号为‘return’所在行号。
                 error_infos.emplace_back(
@@ -454,7 +451,7 @@ void Visitor::invoke_stmt(const ASTNode& node) {
                 break;
             case ASTNode::Type::BLOCK:
                 push_scope();
-                invoke_block(*first_child);
+                invoke_block(*first_child, scope_info);
                 pop_scope();
                 break;
             default:
