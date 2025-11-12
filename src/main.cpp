@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -10,7 +12,10 @@
 #include "error.hpp"
 #include "grammer.hpp"
 #include "lexer.hpp"
+#include "symbol_table.hpp"
 #include "token.hpp"
+#include "util/assert.hpp"
+#include "visitor.hpp"
 
 std::optional<std::string> read_file() {
     std::ifstream file{"./testfile.txt"};
@@ -21,26 +26,74 @@ std::optional<std::string> read_file() {
         return std::nullopt;
 }
 
+void print_error_infos() {
+    if (error_infos.size() == 0) return;
+    std::cout << "Error count: " << error_infos.size() << std::endl;
+    std::sort(error_infos.begin(), error_infos.end());
+    std::ofstream output{"./error.txt", std::ios_base::out};
+    for (auto& error : error_infos) {
+#ifdef NDEBUG
+        output << error.line << ' ' << error.type << std::endl;
+#else
+        output << error.line << ':' << error.col << ' ' << error.type
+               << std::endl;
+#endif
+    }
+}
+
+void print_ast(const ASTNode& ast) {
+    std::ofstream output{"./parser.txt", std::ios_base::out};
+    output << ast;
+}
+
+std::string get_symbol_type(const SymbolAttr& attr) {
+    std::stringstream ss;
+    if (attr.const_flag) ss << "Const";
+    if (attr.static_flag) ss << "Static";
+    switch (attr.base_type) {
+        case SymbolBaseType::INT:
+            ss << "Int";
+            break;
+        case SymbolBaseType::VOID:
+            ss << "Void";
+            break;
+        default:
+            UNREACHABLE();
+    }
+    if (attr.is_array) ss << "Array";
+    if (attr.is_function) ss << "Func";
+
+    return ss.str();
+}
+
+void print_symbol_record(std::vector<SymbolRecord> records) {
+    std::ofstream output{"./symbol.txt", std::ios_base::out};
+    std::stable_sort(records.begin(), records.end(),
+                     [](const SymbolRecord& a, const SymbolRecord& b) {
+                         return a.scope_index < b.scope_index;
+                     });
+    for (SymbolRecord record : records) {
+        output << record.scope_index << ' ' << record.ident_name << ' '
+               << get_symbol_type(record.attr) << std::endl;
+    }
+}
+
 int main() {
-    std::optional<std::string> src = read_file();
-    if (src) {
+    if (std::optional<std::string> src = read_file()) {
         Lexer lexer{*src};
         auto it = lexer.begin();
         auto map = parse_grammer(it);
         const auto ast = map->get(ASTNode::Type::COMP_UNIT);
 
-        if (error_infos.size()) {
-            std::cout << "Error count: " << error_infos.size() << std::endl;
-            // std::sort(error_infos.begin(), error_infos.end());
-            std::ofstream output{"./error.txt", std::ios_base::out};
-            for (auto& error : error_infos) {
-                output << error.line << ' ' << error.type << std::endl;
-            }
-        }
         if (ast) {
-            std::ofstream output{"./parser.txt", std::ios_base::out};
-            output << *ast;
+            print_ast(*ast);
+
+            Visitor visitor{};
+            visitor(*ast);
+            print_symbol_record(visitor.records);
         }
+        print_error_infos();
+
         if (*it) {
             std::cerr << "Unexpected Token: " << (*it).type << " in "
                       << (*it).line << ':' << (*it).col << std::endl;

@@ -14,6 +14,7 @@
 #include "lexer.hpp"
 #include "token.hpp"
 #include "util/assert.hpp"
+#include "util/lambda_overload.hpp"
 
 [[nodiscard]] std::string_view astnode_type_name(ASTNode::Type type) {
     switch (type) {
@@ -89,16 +90,11 @@ std::ostream& operator<<(std::ostream& os, ASTNode::Type type) {
 }
 
 std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
-    struct NodeDumpVisitor {
-        std::ostream& os;
-        NodeDumpVisitor(std::ostream& os) : os(os) {}
-        void operator()(const Token& token) {
+    auto visitor = overloaded{
+        [&os](const Token& token) {
             os << token.type << ' ' << token.content << std::endl;
-        }
-        void operator()(const std::unique_ptr<ASTNode>& ast_node) {
-            os << *ast_node;
-        }
-    };
+        },
+        [&os](const std::unique_ptr<ASTNode>& ast_node) { os << *ast_node; }};
 
 #ifdef NDEBUG
     switch (node.type) {
@@ -111,7 +107,7 @@ std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
         case ASTNode::Type::LOR_EXP: {
             bool odd_flag = true;
             for (const auto& i : node.children) {
-                std::visit(NodeDumpVisitor{os}, i);
+                std::visit(visitor, i);
                 if (odd_flag) os << '<' << node.type << '>' << std::endl;
 
                 odd_flag = !odd_flag;
@@ -120,7 +116,7 @@ std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
         }
         default:
             for (const auto& i : node.children) {
-                std::visit(NodeDumpVisitor{os}, i);
+                std::visit(visitor, i);
             }
             os << '<' << node.type << '>' << std::endl;
     }
@@ -133,7 +129,7 @@ std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
         for (size_t i = 0; i < ident; i++) {
             os << '\t';
         }
-        std::visit(NodeDumpVisitor{os}, i);
+        std::visit(visitor, i);
     }
     ident--;
     return os;

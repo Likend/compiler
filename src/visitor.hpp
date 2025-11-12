@@ -1,39 +1,96 @@
 #pragma once
 
+#include <functional>
+#include <optional>
 #include <stack>
+#include <tuple>
 
 #include "grammer.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
 
 struct SymbolRecord {
-    size_t scope_level;
+    size_t scope_index;
     std::string_view ident_name;
-    SymbolType type;
+    SymbolAttr attr;
+};
+
+struct FunctionScopeInfo {
+    SymbolBaseType return_type;
+};
+
+struct EvalOption {
+    bool const_flag = false;
+};
+
+struct EvalResult {
+    SymbolAttr type = {};
+    std::optional<int> const_value = std::nullopt;  // valued when type is const
 };
 
 class Visitor {
-    size_t current_scope = 1;
-    size_t new_define_scope = 1;
-    std::stack<size_t> scope_stack;
-    SymbolTable symbol_table;
-    std::vector<SymbolRecord> records;
-
    public:
+    Visitor();
+
     void operator()(const ASTNode& node);
+    std::vector<SymbolRecord> records;
 
    private:
     void invoke_comp_unit(const ASTNode& node);
     void invoke_func_def(const ASTNode& node);  // FUNC_DEF and MAIN_FUNC_DEF
-    void invoke_func_params(const ASTNode& node);
-    void invoke_func_param(const ASTNode& node);
+    std::vector<SymbolAttr> invoke_func_params(const ASTNode& node);
+    SymbolAttr invoke_func_param(const ASTNode& node);
     void invoke_var_decl(const ASTNode& node);  // VAR_DECL and CONST_DECL
-    void invoke_var_def(const ASTNode& node);   // VAR_DEF and CONST_DEF
-    void invoke_block(const ASTNode& node, bool require_return = false);
+    void invoke_var_def(const ASTNode& node, bool const_flag,
+                        bool static_flag);  // VAR_DEF and CONST_DEF
+    void invoke_var_init_val(const ASTNode& node,
+                             bool const_flag);  // INIT_VAL and CONST_INIT_VAL
+
+    void invoke_block(const ASTNode& node);
+    void invoke_stmt(const ASTNode& node);
+    void invoke_for_stmt(const ASTNode& node);
+
+    EvalResult invoke_exp(const ASTNode& node,
+                          EvalOption option = {});  // EXP and CONST_EXP
+    EvalResult invoke_cond(const ASTNode& node, EvalOption option = {});
+
+    std::tuple<EvalResult, Token> invoke_lval(const ASTNode& node);
+    std::tuple<EvalResult, Token> invoke_number(const ASTNode& node);
+    const Token& invoke_unary_op(const ASTNode& node);
+
+    EvalResult invoke_primary_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_unary_exp(const ASTNode& node, EvalOption option = {});
+    std::vector<EvalResult> invoke_func_rparams(const ASTNode& node,
+                                                EvalOption option = {});
+
+    EvalResult invoke_mul_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_add_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_rel_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_eq_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_land_exp(const ASTNode& node, EvalOption option = {});
+    EvalResult invoke_lor_exp(const ASTNode& node, EvalOption option = {});
 
     void push_scope();
     void pop_scope();
 
-    void add_symbol(Token idenfr_token, SymbolAttr attr, SymbolType type,
-                    char error_type = 'b');
+    struct SymbolAttrFillBackHandler {
+        std::reference_wrapper<SymbolAttr> attr_in_symbol_table;
+        size_t attr_record_index;
+    };
+
+    std::optional<SymbolAttrFillBackHandler> add_symbol(Token idenfr_token,
+                                                        SymbolAttr attr,
+                                                        char error_type = 'b');
+
+    void fill_back_attr(const SymbolAttrFillBackHandler& handler,
+                        const SymbolAttr& attr);
+
+   private:
+    size_t current_scope = 1;
+    size_t new_define_scope = 1;
+    std::stack<size_t> scope_stack;
+    SymbolTable symbol_table;
+
+    std::optional<FunctionScopeInfo> function_info = std::nullopt;
+    bool in_loop = false;
 };

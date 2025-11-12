@@ -10,6 +10,7 @@
 
 #include "lexer.hpp"
 #include "token.hpp"
+#include "util/lambda_overload.hpp"
 #include "util/scope_hash_set.hpp"
 
 struct ASTNode;
@@ -60,13 +61,13 @@ struct ASTNode {
         using ElementKey = std::variant<ASTNode::Type, Token::Type>;
 
         static inline ElementKey element_key(const Element& element) {
-            struct ElementToKeyVisitor {
-                ElementKey operator()(const std::unique_ptr<ASTNode>& node) {
-                    return node->type;
-                }
-                ElementKey operator()(const Token& token) { return token.type; }
-            };
-            return std::visit(ElementToKeyVisitor{}, element);
+            return std::visit(
+                overloaded{
+                    [](const std::unique_ptr<ASTNode>& node) {
+                        return ElementKey{node->type};
+                    },
+                    [](const Token& token) { return ElementKey{token.type}; }},
+                element);
         }
 
         struct MapHash {
@@ -93,7 +94,7 @@ struct ASTNode {
             }
         };
 
-        using SetType = ScopeHashSet<Element, MapHash, MapPred>;
+        using SetType = ScopeHashSet<Element, MapHash, MapPred, true>;
         SetType set;
 
        public:

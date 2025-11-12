@@ -5,7 +5,7 @@
 #include <vector>
 
 template <typename Value, typename Hash = std::hash<Value>,
-          typename Pred = std::equal_to<Value>>
+          typename Pred = std::equal_to<Value>, bool insert_back = false>
 class ScopeHashSet {
    private:
     struct Node {
@@ -67,7 +67,8 @@ class ScopeHashSet {
 
     size_t bucket_count() const noexcept { return hash_buckets.size(); }
 
-    void insert(Value value) {
+    // modify the return value may effect the hash.
+    Value& insert(Value value) {
         size_t bucket_index = hash(value) % bucket_count();
 
         Node* new_node = new Node{std::move(value)};
@@ -81,6 +82,8 @@ class ScopeHashSet {
 
         // 如果负载因子超标, 则 rehash
         if (load_factor() > max_load_factor) rehash();
+
+        return new_node->value;
     }
 
     template <typename... Args>
@@ -270,7 +273,7 @@ class ScopeHashSet {
         return node;
     }
 
-    // 把节点插入桶中, 保证节点在桶内的前后关系 (处理 hash_prev, hash_next)
+    // 把节点插入桶中, 保证节点在桶内的前后关系 (会处理 hash_prev, hash_next)
     // 不保证 scope 上的链条关系 (即不处理 head, tail, scope_next)
     // 不处理 rehash
     // 不处理 _size
@@ -279,18 +282,30 @@ class ScopeHashSet {
         assert(pointer_to_current_node);
         assert(new_node);
 
-        // 将新节点插入哈希桶头部
-        Node* current_node = *pointer_to_current_node;
-        new_node->hash_next = current_node;  // 新节点指向当前头节点
+        if constexpr (!insert_back) {
+            // 将新节点插入哈希桶头部
+            Node* current_node = *pointer_to_current_node;
+            new_node->hash_next = current_node;  // 新节点指向当前头节点
 
-        // 如果桶不为空，更新原头节点的prev_link_symbol
-        if (current_node) {
-            current_node->hash_prev = &(new_node->hash_next);
+            // 如果桶不为空，更新原头节点的prev_link_symbol
+            if (current_node) {
+                current_node->hash_prev = &(new_node->hash_next);
+            }
+
+            // 更新桶头指针指向新节点
+            *pointer_to_current_node = new_node;
+            new_node->hash_prev = pointer_to_current_node;
+        } else {
+            // 将新节点插入哈希桶尾部
+            while (*pointer_to_current_node != nullptr) {
+                pointer_to_current_node =
+                    &((*pointer_to_current_node)->hash_next);
+            }
+
+            *pointer_to_current_node = new_node;
+            new_node->hash_next = nullptr;
+            new_node->hash_prev = pointer_to_current_node;
         }
-
-        // 更新桶头指针指向新节点
-        *pointer_to_current_node = new_node;
-        new_node->hash_prev = pointer_to_current_node;
     }
 
     // 把节点从桶中删除, 保证节点在桶内的前后关系 (处理 hash_prev,

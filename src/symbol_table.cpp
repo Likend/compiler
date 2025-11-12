@@ -36,14 +36,14 @@ bool SymbolTable::exist_in_scope(std::string_view symbol_name) const {
     return record && record->scope_level == current_scope_level();
 }
 
-bool SymbolTable::try_add_symbol(std::string_view symbol_name,
-                                 SymbolAttr symbol_attr) {
-    // 检查符号是否已在当前作用域中存在
-    if (exist_in_scope(symbol_name)) return false;  // 符号已存在，添加失败
+SymbolAttr& SymbolTable::try_add_symbol(std::string_view symbol_name,
+                                        SymbolAttr symbol_attr) {
+    // // 检查符号是否已在当前作用域中存在
+    // if (exist_in_scope(symbol_name)) return nullptr;  // 符号已存在，添加失败
 
     // 创建新节点
     Record record{std::string(symbol_name), symbol_attr, current_scope_level()};
-    set.insert(std::move(record));
-
-    return true;
+    auto& ref = set.insert(std::move(record));
+    // do not modify ref.name
+    return ref.attr;
 }

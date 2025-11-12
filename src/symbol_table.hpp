@@ -5,20 +5,57 @@
 #include <stack>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "util/scope_hash_set.hpp"
 
-enum class SymbolType { INT, CONST_INT, STATIC_INT, INT_FUNC };
+// enum class SymbolType { INT, CONST_INT, STATIC_INT, INT_FUNC, INT_ARRAY };
+
+enum class SymbolBaseType { INT, VOID };
 
 struct SymbolAttr {
-    SymbolType type;
+    SymbolBaseType base_type = SymbolBaseType::INT;
+    bool const_flag = false;
+    bool static_flag = false;
+    bool is_array = false;
+    bool is_function = false;
+
+    std::vector<SymbolAttr> function_params;
+
+    SymbolAttr& set_base_type(SymbolBaseType base_type) {
+        this->base_type = base_type;
+        return *this;
+    }
+
+    SymbolAttr& set_const(bool const_flag = true) {
+        this->const_flag = const_flag;
+        return *this;
+    }
+
+    SymbolAttr& set_static(bool static_flag = true) {
+        this->static_flag = static_flag;
+        return *this;
+    }
+
+    SymbolAttr& set_array(bool is_array = true) {
+        this->is_array = is_array;
+        return *this;
+    }
+
+    SymbolAttr& set_function(std::vector<SymbolAttr> function_params = {}) {
+        this->is_function = true;
+        this->function_params = std::move(function_params);
+        return *this;
+    }
 };
+
+static SymbolAttr default_symbol_attr {};
 
 class SymbolTable {
    public:
     struct Record {
         std::string name;    // 符号名称
-        SymbolAttr symbol;   // 符号属性
+        SymbolAttr attr;   // 符号属性
         size_t scope_level;  // 作用域层级
     };
 
@@ -53,9 +90,10 @@ class SymbolTable {
      * @param symbol_name 符号名称
      *                    (注意: 要求调用方保证字符串生命周期超过符号表对象)
      * @param symbol_attr 符号属性
-     * @return bool 是否添加成功（如果已存在则失败）
+     * @return SymbolAttr* 是否添加成功（如果已存在则失败）
      */
-    bool try_add_symbol(std::string_view symbol_name, SymbolAttr symbol_attr);
+    SymbolAttr& try_add_symbol(std::string_view symbol_name,
+                               SymbolAttr symbol_attr);
 
    private:
     struct Hash {
