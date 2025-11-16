@@ -88,4 +88,4 @@ std::ostream& operator<<(std::ostream& os, Token::Type type);
 #endif
 
 extern const std::unordered_map<std::string_view, Token::Type>
-    reserved_keywords_map;
+    RESERVED_KEYWORDS_MAP;

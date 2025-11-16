@@ -118,8 +118,8 @@ struct IdentMatcher {
             content.push_back(c);
             return Token::Type::NONE;
         } else {
-            if (auto find = reserved_keywords_map.find(content);
-                find != reserved_keywords_map.cend()) {
+            if (auto find = RESERVED_KEYWORDS_MAP.find(content);
+                find != RESERVED_KEYWORDS_MAP.cend()) {
                 return find->second;
             } else {
                 return Token::Type::IDENFR;

@@ -58,7 +58,7 @@ void Visitor::operator()(const ASTNode& node) { invoke_comp_unit(node); }
 void Visitor::invoke_comp_unit(const ASTNode& node) {
     ASSERT_AST_TYPE(COMP_UNIT, node);
     for (const auto& child : node.children) {
-        const NodePtr& ptr = std::get<NodePtr>(child);
+        const auto& ptr = std::get<NodePtr>(child);
         switch (ptr->type) {
             case ASTNode::Type::FUNC_DEF:
             case ASTNode::Type::MAIN_FUNC_DEF:
@@ -108,14 +108,14 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
         UNEXPECTED_TYPE(node.type);
     }
 
-    auto ident = node.children.get(Token::Type::IDENFR);
+    const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
     bool is_array = false;
     std::optional<int> array_count;
     if (node.children.get(Token::Type::LBRACK)) {
         is_array = true;
-        auto const_exp = node.children.get(ASTNode::Type::CONST_EXP);
+        const auto* const_exp = node.children.get(ASTNode::Type::CONST_EXP);
         ASSERT(const_exp);
         auto exp_eval = invoke_exp(*const_exp, EvalOption{true});
         ASSERT(exp_eval.type.const_flag);
@@ -132,7 +132,7 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
     add_symbol(*ident, SymbolAttr{type});
 
     if (node.children.get(Token::Type::ASSIGN)) {
-        auto init_val =
+        const ASTNode* init_val =
             node.children.get(const_flag ? ASTNode::Type::CONST_INIT_VAL
                                          : ASTNode::Type::INIT_VAL);
         ASSERT(init_val);
@@ -152,14 +152,14 @@ void Visitor::invoke_var_init_val(const ASTNode& node, bool const_flag) {
 
     if (node.children.get(Token::Type::LBRACE)) {
         // 一维数组初值
-        for (auto& exp : node.children.equal_range(
+        for (const ASTNode& exp : node.children.equal_range(
                  const_flag ? ASTNode::Type::CONST_EXP : ASTNode::Type::EXP)) {
             invoke_exp(exp, {const_flag});
         }
     } else {
         // 表达式初值
-        auto exp = node.children.get(const_flag ? ASTNode::Type::CONST_EXP
-                                                : ASTNode::Type::EXP);
+        const ASTNode* exp = node.children.get(
+            const_flag ? ASTNode::Type::CONST_EXP : ASTNode::Type::EXP);
         ASSERT(exp);
         invoke_exp(*exp, {const_flag});
     }
@@ -190,7 +190,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     if (main_func) {
         scope_info.return_type = SymbolBaseType::INT;
     } else {
-        auto func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
+        const ASTNode* func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
         ASSERT(func_type);
         if (func_type->children.get(Token::Type::INTTK)) {
             scope_info.return_type = SymbolBaseType::INT;
@@ -202,7 +202,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     }
 
     if (!main_func) {
-        auto ident = node.children.get(Token::Type::IDENFR);
+        const Token* ident = node.children.get(Token::Type::IDENFR);
         ASSERT(ident);
         SymbolType type;
         type.base_type = scope_info.return_type;
@@ -210,7 +210,8 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         auto fill_back_handler = add_symbol(*ident, SymbolAttr{type});
 
         push_scope();
-        if (auto func_params = node.children.get(ASTNode::Type::FUNC_PARAMS);
+        if (const ASTNode* func_params =
+                node.children.get(ASTNode::Type::FUNC_PARAMS);
             func_params) {
             auto params_eval = invoke_func_params(*func_params);
             // 回填
@@ -227,7 +228,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         push_scope();
     }
 
-    auto block = node.children.get(ASTNode::Type::BLOCK);
+    const ASTNode* block = node.children.get(ASTNode::Type::BLOCK);
     ASSERT(block);
 
     invoke_block(*block, scope_info);
@@ -255,7 +256,7 @@ std::vector<SymbolType> Visitor::invoke_func_params(const ASTNode& node) {
 SymbolAttr Visitor::invoke_func_param(const ASTNode& node) {
     ASSERT_AST_TYPE(FUNC_PARAM, node);
 
-    auto ident = node.children.get(Token::Type::IDENFR);
+    const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
     bool is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
@@ -271,8 +272,8 @@ void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
     ASSERT_AST_TYPE(BLOCK, node);
 
     const ASTNode* last_stmt = nullptr;
-    for (auto& i : node.children) {
-        if (auto block_item = std::get_if<NodePtr>(&i)) {
+    for (const auto& i : node.children) {
+        if (const auto* block_item = std::get_if<NodePtr>(&i)) {
             if (block_item->get()->type == ASTNode::Type::CONST_DECL ||
                 block_item->get()->type == ASTNode::Type::VAR_DECL) {
                 invoke_var_decl(**block_item);
@@ -292,7 +293,7 @@ void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
             last_stmt != nullptr &&
             last_stmt->children.get(Token::Type::RETURNTK) != nullptr;
         if (!has_last_return) {
-            auto rbrace = node.children.get(Token::Type::RBRACE);
+            const Token* rbrace = node.children.get(Token::Type::RBRACE);
             ASSERT(rbrace);
             error_infos.emplace_back(ErrorInfo{'g', rbrace->line, rbrace->col});
         }
@@ -343,18 +344,19 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
                 ErrorInfo{'h', lval_token.line, lval_token.col});
         }
 
-        auto exp = node.children.get(ASTNode::Type::EXP);
+        const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
         invoke_exp(*exp);
     };
 
     // 'if' '(' Cond ')' Stmt [ 'else' Stmt ]
     auto inner_invoke_if_stmt = [&]() {
-        auto cond = node.children.get(ASTNode::Type::COND);
+        const ASTNode* cond = node.children.get(ASTNode::Type::COND);
         ASSERT(cond);
         invoke_cond(*cond);
 
-        for (auto& stmt : node.children.equal_range(ASTNode::Type::STMT)) {
+        for (const ASTNode& stmt :
+             node.children.equal_range(ASTNode::Type::STMT)) {
             invoke_stmt(stmt, scope_info);
         }
     };
@@ -374,7 +376,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const ASTNode* for_stmt1 = nullptr;
         const ASTNode* for_stmt2 = nullptr;
 
-        if (auto _stmt = std::get_if<NodePtr>(&*it)) {
+        if (const auto* _stmt = std::get_if<NodePtr>(&*it)) {
             ++it;
             for_stmt1 = _stmt->get();
         }
@@ -383,7 +385,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         ASSERT_TOKEN_TYPE(SEMICN, semicn_tok1);
         ++it;
 
-        if (auto _cond = std::get_if<NodePtr>(&*it)) {
+        if (const auto* _cond = std::get_if<NodePtr>(&*it)) {
             ++it;
             cond = _cond->get();
         }
@@ -392,12 +394,12 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         ASSERT_TOKEN_TYPE(SEMICN, semicn_tok2);
         ++it;
 
-        if (auto _stmt = std::get_if<NodePtr>(&*it)) {
+        if (const auto* _stmt = std::get_if<NodePtr>(&*it)) {
             ++it;
             for_stmt2 = _stmt->get();
         }
 
-        auto stmt = node.children.get(ASTNode::Type::STMT);
+        const ASTNode* stmt = node.children.get(ASTNode::Type::STMT);
         ASSERT(stmt);
 
         if (for_stmt1) invoke_for_stmt(*for_stmt1);
@@ -420,7 +422,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     // 'return' [Exp] ';'
     // Error type: f
     auto inner_invoke_return_stmt = [&](const Token& return_tok) {
-        if (auto exp = node.children.get(ASTNode::Type::EXP)) {
+        if (const ASTNode* exp = node.children.get(ASTNode::Type::EXP)) {
             invoke_exp(*exp);
             if (scope_info.return_type == SymbolBaseType::VOID) {
                 // 无返回值的函数 存在不匹配的 return语句
@@ -435,13 +437,14 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     // Error type: l printf中格式字符与表达式个数不匹配
     //               报错行号为‘printf’所在行号。
     auto inner_invoke_printf_stmt = [&]() {
-        auto printf_token = node.children.get(Token::Type::PRINTFTK);
+        const Token* printf_token = node.children.get(Token::Type::PRINTFTK);
         ASSERT(printf_token);
-        auto string_const = node.children.get(Token::Type::STRCON);
+        const Token* string_const = node.children.get(Token::Type::STRCON);
         ASSERT(string_const);
 
         size_t exp_count = 0;
-        for (auto& exp : node.children.equal_range(ASTNode::Type::EXP)) {
+        for (const ASTNode& exp :
+             node.children.equal_range(ASTNode::Type::EXP)) {
             invoke_exp(exp);
             exp_count++;
         }
@@ -515,8 +518,8 @@ void Visitor::invoke_for_stmt(const ASTNode& node) {
     for (; lval_it != lval_rg.end(); ++lval_it, ++exp_it) {
         ASSERT(exp_it != exp_rg.end());
 
-        auto& lval = *lval_it;
-        auto& exp = *exp_it;
+        const ASTNode& lval = *lval_it;
+        const ASTNode& exp = *exp_it;
 
         auto [lval_eval, lval_token] = invoke_lval(lval);
 
@@ -538,7 +541,7 @@ EvalResult Visitor::invoke_exp(const ASTNode& node, EvalOption option) {
         UNEXPECTED_TYPE(node.type);
     }
 
-    auto add_exp = node.children.get(ASTNode::Type::ADD_EXP);
+    const ASTNode* add_exp = node.children.get(ASTNode::Type::ADD_EXP);
     ASSERT(add_exp);
     return invoke_add_exp(*add_exp, option);
 }
@@ -548,7 +551,7 @@ EvalResult Visitor::invoke_exp(const ASTNode& node, EvalOption option) {
 EvalResult Visitor::invoke_cond(const ASTNode& node, EvalOption option) {
     ASSERT_AST_TYPE(COND, node);
 
-    auto lor_exp = node.children.get(ASTNode::Type::LOR_EXP);
+    const ASTNode* lor_exp = node.children.get(ASTNode::Type::LOR_EXP);
     ASSERT(lor_exp);
     return invoke_lor_exp(*lor_exp, option);
 }
@@ -557,13 +560,14 @@ EvalResult Visitor::invoke_cond(const ASTNode& node, EvalOption option) {
 // PrimaryExp -> '(' Exp ')' | LVal | Number
 EvalResult Visitor::invoke_primary_exp(const ASTNode& node, EvalOption option) {
     if (node.children.get(Token::Type::LPARENT)) {
-        auto exp = node.children.get(ASTNode::Type::EXP);
+        const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
         return invoke_exp(*exp, option);
-    } else if (auto lval = node.children.get(ASTNode::Type::L_VAL)) {
+    } else if (const ASTNode* lval = node.children.get(ASTNode::Type::L_VAL)) {
         auto [lval_eval, lval_token] = invoke_lval(*lval);
         return lval_eval;
-    } else if (auto number = node.children.get(ASTNode::Type::NUMBER)) {
+    } else if (const ASTNode* number =
+                   node.children.get(ASTNode::Type::NUMBER)) {
         auto [number_eval, intcon_token] = invoke_number(*number);
         return number_eval;
     } else {
@@ -579,17 +583,17 @@ EvalResult Visitor::invoke_primary_exp(const ASTNode& node, EvalOption option) {
 std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) {
     ASSERT_AST_TYPE(L_VAL, node);
 
-    auto ident = node.children.get(Token::Type::IDENFR);
+    const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
-    auto record = symbol_table.find(ident->content);
+    const auto* record = symbol_table.find(ident->content);
     if (record == nullptr) {
         error_infos.emplace_back(ErrorInfo{'c', ident->line, ident->col});
     }
 
     bool has_index = false;
     if (node.children.get(Token::Type::LBRACK)) {
-        auto exp = node.children.get(ASTNode::Type::EXP);
+        const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
         invoke_exp(*exp);
         has_index = true;
@@ -617,7 +621,7 @@ static int evaluate_number(std::string_view intcon) {
 std::tuple<EvalResult, Token> Visitor::invoke_number(const ASTNode& node) {
     ASSERT_AST_TYPE(NUMBER, node);
 
-    auto intcon = node.children.get(Token::Type::INTCON);
+    const Token* intcon = node.children.get(Token::Type::INTCON);
     ASSERT(intcon);
     int value = evaluate_number(intcon->content);
     SymbolType type;
@@ -637,16 +641,17 @@ std::tuple<EvalResult, Token> Visitor::invoke_number(const ASTNode& node) {
 //               函数调用语句中，参数类型与函数定义中对应位置的参数类型不匹配。
 //               报错行号为函数调用语句的函数名所在行数。
 EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
-    if (auto primary_exp = node.children.get(ASTNode::Type::PRIMARY_EXP)) {
+    if (const ASTNode* primary_exp =
+            node.children.get(ASTNode::Type::PRIMARY_EXP)) {
         return invoke_primary_exp(*primary_exp, option);
-    } else if (auto ident = node.children.get(Token::Type::IDENFR)) {
-        if (auto record = symbol_table.find(ident->content)) {
+    } else if (const Token* ident = node.children.get(Token::Type::IDENFR)) {
+        if (const auto* record = symbol_table.find(ident->content)) {
             ASSERT(record->attr.type.is_function);
             const std::vector<SymbolType>& fparams =
                 record->attr.type.function_params;
 
             // 处理函数参数
-            if (auto func_rparams =
+            if (const ASTNode* func_rparams =
                     node.children.get(ASTNode::Type::FUNC_RPARAMS)) {
                 std::vector<EvalResult> rparams =
                     invoke_func_rparams(*func_rparams, option);
@@ -682,9 +687,10 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
             error_infos.emplace_back(ErrorInfo{'c', ident->line, ident->col});
             return {};
         }
-    } else if (auto unary_op = node.children.get(ASTNode::Type::UNARY_OP)) {
+    } else if (const ASTNode* unary_op =
+                   node.children.get(ASTNode::Type::UNARY_OP)) {
         const Token& op_token = invoke_unary_op(*unary_op);
-        auto unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
+        const ASTNode* unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
         ASSERT(unary_exp);
         auto unary_exp_eval = invoke_unary_exp(*unary_exp);
         if (unary_exp_eval.constexpr_value) {
@@ -714,7 +720,8 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
 const Token& Visitor::invoke_unary_op(const ASTNode& node) {
     ASSERT_AST_TYPE(UNARY_OP, node);
 
-    const Token& token = std::get<Token>(*node.children.begin());
+    const auto& token = std::get<Token>(*node.children.begin());
+    // NOLINTNEXTLINE(readability-simplify-boolean-expr)
     ASSERT(token.type == Token::Type::PLUS || token.type == Token::Type::MINU ||
            token.type == Token::Type::NOT);
     return token;
@@ -725,7 +732,7 @@ const Token& Visitor::invoke_unary_op(const ASTNode& node) {
 std::vector<EvalResult> Visitor::invoke_func_rparams(const ASTNode& node,
                                                      EvalOption option) {
     std::vector<EvalResult> evals;
-    for (auto& exp : node.children.equal_range(ASTNode::Type::EXP)) {
+    for (const ASTNode& exp : node.children.equal_range(ASTNode::Type::EXP)) {
         EvalResult eval = invoke_exp(exp, option);
         evals.push_back(eval);
     }
@@ -745,15 +752,15 @@ std::vector<EvalResult> Visitor::invoke_func_rparams(const ASTNode& node,
 //    MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }
 EvalResult Visitor::invoke_mul_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_unary_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_unary_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
@@ -775,15 +782,15 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node, EvalOption option) {
 //     AddExp -> MulExp { ('+' | '-') MulExp }
 EvalResult Visitor::invoke_add_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_mul_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_mul_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
@@ -805,15 +812,15 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node, EvalOption option) {
 //     RelExp -> AddExp { ('<' | '>' | '<=' | '>=') AddExp }
 EvalResult Visitor::invoke_rel_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_add_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_add_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
@@ -831,15 +838,15 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node, EvalOption option) {
 //     EqExp -> RelExp { ('==' | '!=') RelExp }
 EvalResult Visitor::invoke_eq_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_rel_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_rel_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
@@ -857,15 +864,15 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node, EvalOption option) {
 //     LAndExp -> EqExp { '&&' EqExp }
 EvalResult Visitor::invoke_land_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_eq_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_eq_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
@@ -883,15 +890,15 @@ EvalResult Visitor::invoke_land_exp(const ASTNode& node, EvalOption option) {
 //     LOrExp -> LAndExp { '||' LAndExp }
 EvalResult Visitor::invoke_lor_exp(const ASTNode& node, EvalOption option) {
     auto it = node.children.begin();
-    auto& child = std::get<NodePtr>(*it);
+    const auto& child = std::get<NodePtr>(*it);
     ++it;
 
     auto result1 = invoke_land_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] auto& op = std::get<Token>(*it);
+        [[maybe_unused]] const auto& op = std::get<Token>(*it);
         ++it;
 
-        auto& child = std::get<NodePtr>(*it);
+        const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_land_exp(*child, option);
         ASSERT_CALCABLE(result1.type);

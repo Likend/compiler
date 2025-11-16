@@ -287,9 +287,11 @@ struct Define {
     struct ParseNode<ASTNode::Type::type> \
         : Define<ASTNode::Type::type, definition> {}
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define ASSIGN(type, definition) \
     template <>                  \
     struct ParseNode<ASTNode::Type::type> : definition {}
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define OR(...) Or<__VA_ARGS__>
 #define CONCAT(...) Concat<__VA_ARGS__>

@@ -132,60 +132,60 @@ struct ASTNode {
 
         struct TokenEqualRange {
             SetType::EqualRange<ElementKey> inner_range;
-            struct iterator {
+            struct Iterator {
                 SetType::EqualRange<ElementKey>::iterator inner_it;
 
                 const Token& operator*() const {
                     return std::get<Token>(*inner_it);
                 }
-                iterator& operator++() {
+                Iterator& operator++() {
                     ++inner_it;
                     return *this;
                 }
-                iterator operator++(int) {
+                Iterator operator++(int) {
                     auto temp = *this;
                     ++(*this);
                     return temp;
                 }
-                bool operator==(const iterator& other) const noexcept {
+                bool operator==(const Iterator& other) const noexcept {
                     return inner_it == other.inner_it;
                 }
-                bool operator!=(const iterator& other) const noexcept {
+                bool operator!=(const Iterator& other) const noexcept {
                     return !this->operator==(other);
                 }
             };
 
-            iterator begin() const { return {inner_range.begin()}; }
-            iterator end() const { return {inner_range.end()}; }
+            Iterator begin() const { return {inner_range.begin()}; }
+            Iterator end() const { return {inner_range.end()}; }
         };
 
         struct ASTNodeEqualRange {
             SetType::EqualRange<ElementKey> inner_range;
-            struct iterator {
+            struct Iterator {
                 SetType::EqualRange<ElementKey>::iterator inner_it;
 
                 const ASTNode& operator*() const {
                     return *std::get<std::unique_ptr<ASTNode>>(*inner_it);
                 }
-                iterator& operator++() {
+                Iterator& operator++() {
                     ++inner_it;
                     return *this;
                 }
-                iterator operator++(int) {
+                Iterator operator++(int) {
                     auto temp = *this;
                     ++(*this);
                     return temp;
                 }
-                bool operator==(const iterator& other) const noexcept {
+                bool operator==(const Iterator& other) const noexcept {
                     return inner_it == other.inner_it;
                 }
-                bool operator!=(const iterator& other) const noexcept {
+                bool operator!=(const Iterator& other) const noexcept {
                     return !this->operator==(other);
                 }
             };
 
-            iterator begin() const { return {inner_range.begin()}; }
-            iterator end() const { return {inner_range.end()}; }
+            Iterator begin() const { return {inner_range.begin()}; }
+            Iterator end() const { return {inner_range.end()}; }
         };
 
         TokenEqualRange equal_range(Token::Type type) const {
@@ -208,6 +208,6 @@ struct ASTNode {
 
 std::ostream& operator<<(std::ostream& os, ASTNode::Type type);
 #endif
-std::ostream& operator<<(std::ostream& os, const ASTNode& t);
+std::ostream& operator<<(std::ostream& os, const ASTNode& node);
 
 std::optional<ASTNode::Map> parse_grammer(Lexer::iterator& it);

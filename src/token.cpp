@@ -30,7 +30,7 @@ std::string_view token_type_name(Token::Type type) {
 }
 
 #define HANDLE_RESERVED_KEYWORD(X, V) {V, Token::Type::X},
-const std::unordered_map<std::string_view, Token::Type> reserved_keywords_map =
+const std::unordered_map<std::string_view, Token::Type> RESERVED_KEYWORDS_MAP =
     {EXPAND_RESERVED_KEYWORDS};
 #undef HANDLE_RESERVED_KEYWORD
 

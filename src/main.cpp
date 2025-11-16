@@ -51,7 +51,7 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
                      [](const SymbolRecord& a, const SymbolRecord& b) {
                          return a.scope_index < b.scope_index;
                      });
-    for (SymbolRecord record : records) {
+    for (const SymbolRecord& record : records) {
         output << record.scope_index << ' ' << record.ident_name << ' '
                << record.attr.type << std::endl;
     }
@@ -62,7 +62,7 @@ int main() {
         Lexer lexer{*src};
         auto it = lexer.begin();
         auto map = parse_grammer(it);
-        const auto ast = map->get(ASTNode::Type::COMP_UNIT);
+        const auto *const ast = map->get(ASTNode::Type::COMP_UNIT);
 
         if (ast) {
             print_ast(*ast);
