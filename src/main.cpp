@@ -3,7 +3,6 @@
 #include <ios>
 #include <iostream>
 #include <optional>
-#include <sstream>
 #include <string>
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -46,26 +45,6 @@ void print_ast(const ASTNode& ast) {
     output << ast;
 }
 
-std::string get_symbol_type(const SymbolAttr& attr) {
-    std::stringstream ss;
-    if (attr.const_flag) ss << "Const";
-    if (attr.static_flag) ss << "Static";
-    switch (attr.base_type) {
-        case SymbolBaseType::INT:
-            ss << "Int";
-            break;
-        case SymbolBaseType::VOID:
-            ss << "Void";
-            break;
-        default:
-            UNREACHABLE();
-    }
-    if (attr.is_array) ss << "Array";
-    if (attr.is_function) ss << "Func";
-
-    return ss.str();
-}
-
 void print_symbol_record(std::vector<SymbolRecord> records) {
     std::ofstream output{"./symbol.txt", std::ios_base::out};
     std::stable_sort(records.begin(), records.end(),
@@ -74,7 +53,7 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
                      });
     for (SymbolRecord record : records) {
         output << record.scope_index << ' ' << record.ident_name << ' '
-               << get_symbol_type(record.attr) << std::endl;
+               << record.attr.type << std::endl;
     }
 }
 

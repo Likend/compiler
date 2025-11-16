@@ -8,7 +8,7 @@ class SymbolTableTest : public testing::Test {
    protected:
     SymbolAttr make_symbol([[maybe_unused]] const std::string& type) {
         SymbolAttr s;
-        s.set_base_type(SymbolBaseType::INT);
+        s.type.base_type = SymbolBaseType::INT;
         // TODO: 根据实际Symbol结构填充
         return s;
     }

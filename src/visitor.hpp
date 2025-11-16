@@ -25,8 +25,8 @@ struct EvalOption {
 };
 
 struct EvalResult {
-    SymbolAttr type = {};
-    std::optional<int> const_value = std::nullopt;  // valued when type is const
+    SymbolType type = {};
+    std::optional<int> constexpr_value = std::nullopt;
 };
 
 class Visitor {
@@ -39,7 +39,7 @@ class Visitor {
    private:
     void invoke_comp_unit(const ASTNode& node);
     void invoke_func_def(const ASTNode& node);  // FUNC_DEF and MAIN_FUNC_DEF
-    std::vector<SymbolAttr> invoke_func_params(const ASTNode& node);
+    std::vector<SymbolType> invoke_func_params(const ASTNode& node);
     SymbolAttr invoke_func_param(const ASTNode& node);
     void invoke_var_decl(const ASTNode& node);  // VAR_DECL and CONST_DECL
     void invoke_var_def(const ASTNode& node, bool const_flag,

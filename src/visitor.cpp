@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -48,7 +47,9 @@ using NodePtr = std::unique_ptr<ASTNode>;
     } while (0)
 
 Visitor::Visitor() {
-    symbol_table.try_add_symbol("getint", SymbolAttr{}.set_function());
+    SymbolType type;
+    type.is_function = true;
+    symbol_table.try_add_symbol("getint", SymbolAttr{type});
 }
 
 void Visitor::operator()(const ASTNode& node) { invoke_comp_unit(node); }
@@ -111,17 +112,24 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
     ASSERT(ident);
 
     bool is_array = false;
+    std::optional<int> array_count;
     if (node.children.get(Token::Type::LBRACK)) {
         is_array = true;
         auto const_exp = node.children.get(ASTNode::Type::CONST_EXP);
         ASSERT(const_exp);
-        invoke_exp(*const_exp, EvalOption{true});
+        auto exp_eval = invoke_exp(*const_exp, EvalOption{true});
+        ASSERT(exp_eval.type.const_flag);
+        ASSERT(exp_eval.constexpr_value);
+        array_count = exp_eval.constexpr_value;
     }
 
-    add_symbol(*ident, SymbolAttr{}
-                           .set_const(const_flag)
-                           .set_static(static_flag)
-                           .set_array(is_array));
+    SymbolType type;
+    type.base_type = SymbolBaseType::INT;
+    type.const_flag = const_flag;
+    type.static_flag = static_flag;
+    type.is_array = is_array;
+    type.array_count = array_count;
+    add_symbol(*ident, SymbolAttr{type});
 
     if (node.children.get(Token::Type::ASSIGN)) {
         auto init_val =
@@ -196,20 +204,23 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     if (!main_func) {
         auto ident = node.children.get(Token::Type::IDENFR);
         ASSERT(ident);
-        auto fill_back_handler = add_symbol(
-            *ident,
-            SymbolAttr{}.set_function().set_base_type(scope_info.return_type));
+        SymbolType type;
+        type.base_type = scope_info.return_type;
+        type.is_function = true;
+        auto fill_back_handler = add_symbol(*ident, SymbolAttr{type});
 
         push_scope();
         if (auto func_params = node.children.get(ASTNode::Type::FUNC_PARAMS);
             func_params) {
             auto params_eval = invoke_func_params(*func_params);
             // 回填
+            SymbolType type;
+            type.base_type = scope_info.return_type;
+            type.function_params = std::move(params_eval);
+            type.is_function = true;
             if (fill_back_handler) {
                 fill_back_attr(fill_back_handler.value(),
-                               SymbolAttr{}
-                                   .set_function(std::move(params_eval))
-                                   .set_base_type(scope_info.return_type));
+                               SymbolAttr{std::move(type)});
             }
         }
     } else {
@@ -224,14 +235,14 @@ void Visitor::invoke_func_def(const ASTNode& node) {
 }
 
 // 函数形参表 FuncFParams -> FuncFParam { ',' FuncFParam }
-std::vector<SymbolAttr> Visitor::invoke_func_params(const ASTNode& node) {
+std::vector<SymbolType> Visitor::invoke_func_params(const ASTNode& node) {
     ASSERT_AST_TYPE(FUNC_PARAMS, node);
 
-    std::vector<SymbolAttr> function_params;
+    std::vector<SymbolType> function_params;
     for (const auto& func_param :
          node.children.equal_range(ASTNode::Type::FUNC_PARAM)) {
         auto attr = invoke_func_param(func_param);
-        function_params.push_back(attr);
+        function_params.push_back(attr.type);
     }
     return function_params;
 }
@@ -248,7 +259,9 @@ SymbolAttr Visitor::invoke_func_param(const ASTNode& node) {
     ASSERT(ident);
 
     bool is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
-    auto attr = SymbolAttr{}.set_array(is_array);
+    SymbolType type;
+    type.is_array = is_array;
+    SymbolAttr attr{type};
     add_symbol(*ident, attr);
     return attr;
 }
@@ -582,15 +595,14 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) {
         has_index = true;
     }
 
+    SymbolType type;
     if (record) {
-        SymbolAttr attr = record->attr;
-        if (attr.is_array && has_index) {
-            attr.is_array = false;
+        type = record->attr.type;
+        if (type.is_array && has_index) {
+            type.is_array = false;
         }
-        return std::make_tuple(EvalResult{attr}, *ident);
-    } else {
-        return std::make_tuple(EvalResult{}, *ident);  // ?
     }
+    return std::make_tuple(EvalResult{type}, *ident);
 }
 
 static int evaluate_number(std::string_view intcon) {
@@ -608,8 +620,9 @@ std::tuple<EvalResult, Token> Visitor::invoke_number(const ASTNode& node) {
     auto intcon = node.children.get(Token::Type::INTCON);
     ASSERT(intcon);
     int value = evaluate_number(intcon->content);
-    return std::make_tuple(EvalResult{SymbolAttr{}.set_const(), value},
-                           *intcon);
+    SymbolType type;
+    type.const_flag = true;
+    return std::make_tuple(EvalResult{type, value}, *intcon);
 }
 
 // 一元表达式
@@ -628,9 +641,9 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
         return invoke_primary_exp(*primary_exp, option);
     } else if (auto ident = node.children.get(Token::Type::IDENFR)) {
         if (auto record = symbol_table.find(ident->content)) {
-            ASSERT(record->attr.is_function);
-            const std::vector<SymbolAttr>& fparams =
-                record->attr.function_params;
+            ASSERT(record->attr.type.is_function);
+            const std::vector<SymbolType>& fparams =
+                record->attr.type.function_params;
 
             // 处理函数参数
             if (auto func_rparams =
@@ -661,18 +674,35 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
 
             // 处理返回值
             // ASSERT(record->attr.base_type != SymbolBaseType::VOID);
-            return {SymbolAttr{}
-                        .set_base_type(record->attr.base_type)
-                        .set_array(record->attr.is_array)};
+            SymbolType type;
+            type.base_type = record->attr.type.base_type;
+            type.is_array = record->attr.type.is_array;
+            return {type};
         } else {
             error_infos.emplace_back(ErrorInfo{'c', ident->line, ident->col});
             return {};
         }
     } else if (auto unary_op = node.children.get(ASTNode::Type::UNARY_OP)) {
-        invoke_unary_op(*unary_op);
+        const Token& op_token = invoke_unary_op(*unary_op);
         auto unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
         ASSERT(unary_exp);
         auto unary_exp_eval = invoke_unary_exp(*unary_exp);
+        if (unary_exp_eval.constexpr_value) {
+            switch (op_token.type) {
+                case Token::Type::PLUS:
+                    break;
+                case Token::Type::MINU:
+                    *unary_exp_eval.constexpr_value =
+                        -*unary_exp_eval.constexpr_value;
+                    break;
+                case Token::Type::NOT:
+                    *unary_exp_eval.constexpr_value =
+                        !*unary_exp_eval.constexpr_value;
+                    break;
+                default:
+                    UNREACHABLE();
+            }
+        }
         return unary_exp_eval;
     } else {
         UNREACHABLE();
@@ -730,6 +760,10 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node, EvalOption option) {
         ASSERT_CALCABLE(result2.type);
         result1.type.const_flag =
             result1.type.const_flag && result2.type.const_flag;
+        if (result1.constexpr_value && result2.constexpr_value) {
+            *result1.constexpr_value =
+                *result1.constexpr_value * *result2.constexpr_value;
+        }
     }
 
     return result1;
@@ -756,6 +790,10 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node, EvalOption option) {
         ASSERT_CALCABLE(result2.type);
         result1.type.const_flag =
             result1.type.const_flag && result2.type.const_flag;
+        if (result1.constexpr_value && result2.constexpr_value) {
+            *result1.constexpr_value =
+                *result1.constexpr_value + *result2.constexpr_value;
+        }
     }
 
     return result1;

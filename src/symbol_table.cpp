@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include "util/assert.hpp"
+
 SymbolTable::SymbolTable() { scope_boundaries.push(set.get_scope_marker()); };
 
 const SymbolTable::Record* SymbolTable::find(
@@ -46,4 +48,25 @@ SymbolAttr& SymbolTable::try_add_symbol(std::string_view symbol_name,
     auto& ref = set.insert(std::move(record));
     // do not modify ref.name
     return ref.attr;
+}
+
+std::ostream& operator<<(std::ostream& os, const SymbolType& symbol_type) {
+    if (symbol_type.const_flag) os << "Const";
+    if (symbol_type.static_flag) os << "Static";
+    switch (symbol_type.base_type) {
+        case SymbolBaseType::INT:
+            os << "Int";
+            break;
+        case SymbolBaseType::VOID:
+            os << "Void";
+            break;
+        default:
+            UNREACHABLE();
+    }
+    if (symbol_type.is_array) os << "Array";
+    if (symbol_type.is_function) os << "Func";
+    if (symbol_type.array_count) {
+        os << '[' << *symbol_type.array_count << ']';
+    }
+    return os;
 }
