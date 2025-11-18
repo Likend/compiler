@@ -1,7 +1,6 @@
 #include "grammer.hpp"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -140,9 +139,9 @@ using Element = ASTNode::Element;
 using Map = ASTNode::Map;
 
 struct ParserContext {
-    std::reference_wrapper<Lexer::iterator> it;
-    std::reference_wrapper<Map> container;
-    std::reference_wrapper<Token> last_token;
+    Lexer::iterator& it;
+    Map& container;
+    Token& last_token;
     bool strict;
 
     struct Marker {
@@ -152,13 +151,13 @@ struct ParserContext {
     };
 
     Marker save_marker() {
-        return {it, container.get().get_scope_marker(), last_token};
+        return {it, container.get_scope_marker(), last_token};
     }
 
     void reserve_marker(const Marker& marker) {
-        it.get() = marker.it;
-        container.get().pop_scope(marker.map_marker);
-        last_token.get() = marker.token_packup;
+        it = marker.it;
+        container.pop_scope(marker.map_marker);
+        last_token = marker.token_packup;
     }
 
     ParserContext update_container(Map& new_container) const {
@@ -169,7 +168,7 @@ struct ParserContext {
         return {it, container, last_token, new_strict};
     }
 
-    ParserContext update_token(Token new_token) const {
+    ParserContext update_token(Token& new_token) const {
         return {it, container, new_token, strict};
     }
 };
@@ -180,20 +179,20 @@ struct ParseNode {};
 template <Token::Type type>
 struct ParseToken {
     bool operator()(ParserContext bundle) {
-        Token token = *bundle.it.get();
+        Token token = *bundle.it;
         if (token.type == type) {
-            bundle.container.get().insert(token);
-            ++bundle.it.get();
-            bundle.last_token.get() = token;
+            bundle.container.insert(token);
+            ++bundle.it;
+            bundle.last_token = token;
             return true;
         }
         if (token.type == Token::Type::ERROR) {
             if ((*token.content.data() == '&' && type == Token::Type::AND) ||
                 (*token.content.data() == '|' && type == Token::Type::OR)) {
                 error_infos.emplace_back(ErrorInfo{'a', token.line, token.col});
-                bundle.container.get().insert(token);
-                ++bundle.it.get();
-                bundle.last_token.get() = token;
+                bundle.container.insert(token);
+                ++bundle.it;
+                bundle.last_token = token;
                 return true;
             }
         }
@@ -207,10 +206,10 @@ struct ParseTokenRequired {
         bool result = ParseToken<type>{}(bundle.update_strict(true));
         if (!result) {
             error_infos.emplace_back(
-                ErrorInfo{error_type, bundle.last_token.get().line,
-                          bundle.last_token.get().col +
-                              bundle.last_token.get().content.size()});
-            bundle.container.get().insert(
+                ErrorInfo{error_type, bundle.last_token.line,
+                          bundle.last_token.col +
+                              bundle.last_token.content.size()});
+            bundle.container.insert(
                 Token{type, token_type_name(type), 0, 0});
         }
         return true;
@@ -276,7 +275,7 @@ struct Define {
         auto ast_node = std::make_unique<ASTNode>(type);
         bool res = Parser{}(bundle.update_container(ast_node->children));
         if (res) {
-            bundle.container.get().insert(std::move(ast_node));
+            bundle.container.insert(std::move(ast_node));
         }
         return res;
     }

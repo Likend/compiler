@@ -33,7 +33,7 @@ testing::internal::ValueArray<std::tuple<T, Token::Type>...> SingleInputs(
         std::tuple<T, Token::Type>{v, type}...);
 }
 
-INSTANTIATE_TEST_CASE_P(LexerTestSingleIdenfr, LexerTestSingle,
+INSTANTIATE_TEST_SUITE_P(LexerTestSingleIdenfr, LexerTestSingle,
                         SingleInputs<Token::Type::IDENFR>(
                             "a", "Z", "_", "ab", "a1", "a_", "helloWorld",
                             "x123", "_a", "_1", "__", "_var", "_123", "a_b",
@@ -41,13 +41,13 @@ INSTANTIATE_TEST_CASE_P(LexerTestSingleIdenfr, LexerTestSingle,
                             "this_is_a_very_long_identifier_123",
                             "abc123def456ghi", "init"));
 
-INSTANTIATE_TEST_CASE_P(LexerTestSingleIntcon, LexerTestSingle,
+INSTANTIATE_TEST_SUITE_P(LexerTestSingleIntcon, LexerTestSingle,
                         SingleInputs<Token::Type::INTCON>(
                             "0", "1", "9", "10", "123", "1000", "99999",
                             "123456789", "1", "5", "9", "12", "987", "100", "1",
                             "2", "3", "4", "5", "6", "7", "8", "9"));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LexerTestSingleStrcon, LexerTestSingle,
     SingleInputs<Token::Type::STRCON>(
         "\"\"", "\"Hello World\"", "\"12345\"", "\"!@#$%^&*()\"",
@@ -60,13 +60,13 @@ INSTANTIATE_TEST_CASE_P(
         "\"Z\"", "\"0\"", "\"9\"", "\" \"", "\"!\"", "\"~\""));
 
 #define HANDLE_RESERVED_KEYWORD(X, Y) InTuple{Y, Token::Type::X},
-INSTANTIATE_TEST_CASE_P(LexerTestSingleKeywords, LexerTestSingle,
+INSTANTIATE_TEST_SUITE_P(LexerTestSingleKeywords, LexerTestSingle,
                         testing::Values(EXPAND_RESERVED_KEYWORDS InTuple{
                             "", Token::Type::NONE}));
 #undef HANDLE_RESERVED_KEYWORD
 
 #define HANDLE_DELIMITER_KEYWORDS(X, Y) InTuple{Y, Token::Type::X},
-INSTANTIATE_TEST_CASE_P(LexerTestSingleDelimiter, LexerTestSingle,
+INSTANTIATE_TEST_SUITE_P(LexerTestSingleDelimiter, LexerTestSingle,
                         testing::Values(EXPAND_DELIMITER_KEYWORDS InTuple{
                             "", Token::Type::NONE}));
 #undef HANDLE_DELIMITER_KEYWORDS
@@ -90,7 +90,7 @@ INSTANTIATE_TEST_CASE_P(LexerTestSingleDelimiter, LexerTestSingle,
 //     }
 // }
 
-// INSTANTIATE_TEST_CASE_P(
+// INSTANTIATE_TEST_SUITE_P(
 //     LexerTestIntconMultipleZero, LexerTestIntconMultipleZero,
 //     testing::Values(std::tuple<size_t, std::string_view>{2, "007"},
 //                     std::tuple<size_t, std::string_view>{1, "01234"},
@@ -114,7 +114,7 @@ TEST_P(LexerTestComment, CommentAndInt) {
     EXPECT_EQ(token.type, Token::Type::INTTK);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LexerTestComment, LexerTestComment,
     testing::Values("// single line comment", "//", "// 123 numbers //",
                     "// special characters !@#$%^&*()",
@@ -140,8 +140,8 @@ TEST_P(LexerTestError, Error) {
     EXPECT_TRUE(has_error);
 }
 
-INSTANTIATE_TEST_CASE_P(LexerTestErrorComment, LexerTestError,
+INSTANTIATE_TEST_SUITE_P(LexerTestErrorComment, LexerTestError,
                         testing::Values("/* no end", "/* no end\n"));
 
-INSTANTIATE_TEST_CASE_P(LexerTestErrorString, LexerTestError,
+INSTANTIATE_TEST_SUITE_P(LexerTestErrorString, LexerTestError,
                         testing::Values("\"hello"));

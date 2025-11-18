@@ -201,7 +201,7 @@ class ScopeHashSet {
     class EqualRange {
        private:
         Node* node;
-        std::reference_wrapper<const Pred> pred;
+        const Pred& pred;
         const SearchKey key;
 
         EqualRange(Node* node, const Pred& pred, const SearchKey& key)
@@ -212,8 +212,8 @@ class ScopeHashSet {
         struct iterator {
            private:
             Node* node;
-            std::reference_wrapper<const Pred> pred;
-            std::reference_wrapper<const SearchKey> key;
+            const Pred& pred;
+            const SearchKey& key;
             friend class EqualRange;
 
             iterator(Node* node, const Pred& pred, const SearchKey& key)
@@ -224,8 +224,7 @@ class ScopeHashSet {
             iterator& operator++() {
                 do {
                     node = node->hash_next;
-                } while (node != nullptr &&
-                         !pred.get()(node->value, key.get()));
+                } while (node != nullptr && !pred(node->value, key));
                 return *this;
             }
             iterator operator++(int) noexcept {

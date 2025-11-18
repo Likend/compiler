@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <stack>
 #include <tuple>
@@ -75,7 +74,7 @@ class Visitor {
     void pop_scope();
 
     struct SymbolAttrFillBackHandler {
-        std::reference_wrapper<SymbolAttr> attr_in_symbol_table;
+        SymbolAttr& attr_in_symbol_table;
         size_t attr_record_index;
     };
 

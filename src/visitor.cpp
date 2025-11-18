@@ -945,6 +945,6 @@ std::optional<Visitor::SymbolAttrFillBackHandler> Visitor::add_symbol(
 
 void Visitor::fill_back_attr(const SymbolAttrFillBackHandler& handler,
                              const SymbolAttr& attr) {
-    handler.attr_in_symbol_table.get() = attr;
+    handler.attr_in_symbol_table = attr;
     records.at(handler.attr_record_index).attr = attr;
 }
