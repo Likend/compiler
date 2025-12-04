@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <ostream>
@@ -8,6 +9,9 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
 
 #include "util/scope_hash_set.hpp"
 
@@ -23,14 +27,21 @@ struct SymbolType {
     bool is_function = false;
 
     std::vector<SymbolType> function_params;
-    std::optional<int> array_count;
+    std::optional<int> array_count;  // valid when is_array is true
+
+    size_t size() const;
 };
 
 struct SymbolAttr {
     SymbolType type;
+
+    llvm::Value* addr_value;
+    std::vector<int32_t> const_values;
+
+    bool is_const() const { return !const_values.empty(); }
 };
 
-static SymbolAttr default_symbol_attr{};
+// static SymbolAttr default_symbol_attr{};
 
 class SymbolTable {
    public:

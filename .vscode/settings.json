@@ -31,7 +31,7 @@
   // Clangd 找不到编译数据库(例如 compile_flags.json 文件)时采用的设置,缺陷是不能直接索引同一项目的不同文件,只能分析系统头文件、当前文件和include的文件
   "clangd.fallbackFlags": [
     "-std=c++17",
-    "--query-driver=D:\\MSYS2\\ucrt64\\bin\\g++",
+    "--query-driver=D:\\MSYS2\\clang64\\bin\\clang++",
     "-I${workspaceFolder}/src/includes",
     "--target=x86_64-w64-windows-gnu" // 默认使用window gcc(MinGW),如果你是linux，就改成"--target=x86_64-pc-linux-gnu"
   ],

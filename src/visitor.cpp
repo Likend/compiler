@@ -1,11 +1,30 @@
 #include "visitor.hpp"
 
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <variant>
+#include <vector>
+
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/IRBuilderFolder.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
+#include <llvm/Support/Casting.h>
 
 #include "error.hpp"
 #include "grammer.hpp"
@@ -15,13 +34,13 @@
 #include "util/lambda_overload.hpp"
 
 using NodePtr = std::unique_ptr<ASTNode>;
+using namespace std::string_literals;
 
-#define UNEXPECTED_TYPE(type)                \
-    do {                                     \
-        std::stringstream ss;                \
-        ss << "Unexpected type: " << (type); \
-        ANNOTATE_LOCATION(ss);               \
-        throw std::runtime_error(ss.str());  \
+#define UNEXPECTED_TYPE(type)                      \
+    do {                                           \
+        std::stringstream ss;                      \
+        ss << "Unexpected type: " << (type);       \
+        assert_throw(ss.str(), ANNOTATE_LOCATION); \
     } while (0)
 
 #define ASSERT_AST_TYPE(t, node)                                        \
@@ -30,8 +49,7 @@ using NodePtr = std::unique_ptr<ASTNode>;
             std::stringstream ss;                                       \
             ss << "Assert AST type failed! Expect " << ASTNode::Type::t \
                << " get " << (node).type << ". ";                       \
-            ANNOTATE_LOCATION(ss);                                      \
-            throw std::runtime_error(ss.str());                         \
+            assert_throw(ss.str(), ANNOTATE_LOCATION);                  \
         }                                                               \
     } while (0)
 
@@ -41,18 +59,55 @@ using NodePtr = std::unique_ptr<ASTNode>;
             std::stringstream ss;                                       \
             ss << "Assert Token type failed! Expect " << Token::Type::t \
                << " get " << (token).type << ". ";                      \
-            ANNOTATE_LOCATION(ss);                                      \
-            throw std::runtime_error(ss.str());                         \
+            assert_throw(ss.str(), ANNOTATE_LOCATION);                  \
         }                                                               \
     } while (0)
 
-Visitor::Visitor() {
-    SymbolType type;
-    type.is_function = true;
-    symbol_table.try_add_symbol("getint", SymbolAttr{type});
+Visitor::Visitor(const ASTNode& node) {
+    // declare i32 @getint()          ; 读取一个整数
+    auto* getint_type =
+        llvm::FunctionType::get(builder->getInt32Ty(), {}, false);
+    auto* getint_value = llvm::Function::Create(
+        getint_type, llvm::Function::ExternalLinkage, "getint", *module);
+    SymbolAttr attr;
+    attr.type.is_function = true;
+    attr.addr_value = getint_value;
+    symbol_table.try_add_symbol("getint", attr);
+
+    // declare void @putint(i32)      ; 输出一个整数
+    auto* putint_type = llvm::FunctionType::get(builder->getVoidTy(),
+                                                {builder->getInt32Ty()}, false);
+    putint_func = llvm::Function::Create(
+        putint_type, llvm::Function::ExternalLinkage, "putint", *module);
+
+    // declare void @putch(i32)       ; 输出一个字符
+    auto* putch_type = llvm::FunctionType::get(builder->getVoidTy(),
+                                               {builder->getInt32Ty()}, false);
+    putch_func = llvm::Function::Create(
+        putch_type, llvm::Function::ExternalLinkage, "putch", *module);
+
+    // declare void @putstr(i8*)       ; 输出字符串
+    auto* putstr_type = llvm::FunctionType::get(builder->getVoidTy(),
+                                                {builder->getPtrTy()}, false);
+    putstr_func = llvm::Function::Create(
+        putstr_type, llvm::Function::ExternalLinkage, "putstr", *module);
+
+    // declare init global function
+    auto* init_global_func_ty =
+        llvm::FunctionType::get(builder->getVoidTy(), {}, false);
+    init_global_func = llvm::Function::Create(
+        init_global_func_ty, llvm::GlobalValue::InternalLinkage, ".init",
+        *module);
+    init_global_bb =
+        llvm::BasicBlock::Create(*context, "init", init_global_func);
+
+    invoke_comp_unit(node);
+
+    builder->SetInsertPoint(init_global_bb);
+    builder->CreateRetVoid();
 }
 
-void Visitor::operator()(const ASTNode& node) { invoke_comp_unit(node); }
+// void Visitor::operator()(const ASTNode& node) { invoke_comp_unit(node); }
 
 // 编译单元 CompUnit -> { ConstDecl | VarDecl | FuncDef | MainFuncDef }
 void Visitor::invoke_comp_unit(const ASTNode& node) {
@@ -107,62 +162,155 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
         node.type != ASTNode::Type::CONST_DEF) {
         UNEXPECTED_TYPE(node.type);
     }
+    bool is_global_scope = builder->GetInsertBlock() == nullptr || static_flag;
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
-
     bool is_array = false;
     std::optional<int> array_count;
-    if (node.children.get(Token::Type::LBRACK)) {
+    if (node.children.get(Token::Type::LBRACK)) {  // Ident [ ConstExp ]
         is_array = true;
         const auto* const_exp = node.children.get(ASTNode::Type::CONST_EXP);
         ASSERT(const_exp);
-        auto exp_eval = invoke_exp(*const_exp, EvalOption{true});
-        ASSERT(exp_eval.type.const_flag);
-        ASSERT(exp_eval.constexpr_value);
-        array_count = exp_eval.constexpr_value;
+        EvalOption option;
+        option.in_constexpr_context = true;
+        auto exp_eval = invoke_exp(*const_exp, option);
+        auto value = exp_eval.exp->test_constexpr();
+        ASSERT(value.has_value());
+        array_count = *value;
     }
 
+    // alloc address
+    llvm::Type* alloc_type;
+    if (is_array) {
+        alloc_type = llvm::ArrayType::get(builder->getInt32Ty(), *array_count);
+    } else {
+        alloc_type = builder->getInt32Ty();
+    }
+
+    llvm::Value* alloc_ptr;
+    if (is_global_scope) {
+        alloc_ptr = new llvm::GlobalVariable(*module, alloc_type, const_flag,
+                                             llvm::GlobalValue::ExternalLinkage,
+                                             nullptr, ident->content);
+    } else {
+        alloc_ptr = builder->CreateAlloca(alloc_type, nullptr,
+                                          "alloc."s.append(ident->content));
+    }
+
+    // initializer
+    std::vector<EvalResult> init_evals;
+    if (node.children.get(Token::Type::ASSIGN)) {
+        const ASTNode* init_val =
+            node.children.get(const_flag ? ASTNode::Type::CONST_INIT_VAL
+                                         : ASTNode::Type::INIT_VAL);
+        ASSERT(init_val);
+        init_evals = invoke_var_init_val(*init_val, const_flag);
+    }
+
+    std::vector<int32_t> const_values;
+    if (is_global_scope) {
+        auto* global_ptr = llvm::dyn_cast<llvm::GlobalVariable>(alloc_ptr);
+        auto* const_zero = llvm::ConstantInt::get(builder->getInt32Ty(), 0);
+
+        llvm::BasicBlock* current_bb = builder->GetInsertBlock();
+        builder->SetInsertPoint(init_global_bb);
+
+        if (is_array) {
+            std::vector<llvm::Constant*> array_const_elem(*array_count,
+                                                          const_zero);
+
+            for (size_t i = 0; i < std::min(init_evals.size(),
+                                            static_cast<size_t>(*array_count));
+                 i++) {
+                if (auto const_int = init_evals[i].exp->test_constexpr()) {
+                    array_const_elem[i] = llvm::ConstantInt::get(
+                        builder->getInt32Ty(), *const_int);
+                    if (const_flag) const_values.push_back(*const_int);
+                } else {
+                    ASSERT(!const_flag);
+                    llvm::Value* ptr_to_elem = builder->CreateGEP(
+                        alloc_type, alloc_ptr,
+                        {builder->getInt32(0), builder->getInt32(i)},
+                        "ptr.arr." + std::to_string(i));
+                    builder->CreateStore(init_evals[i].exp->rvalue(*builder),
+                                         ptr_to_elem);
+                }
+            }
+            global_ptr->setInitializer(llvm::ConstantArray::get(
+                llvm::dyn_cast<llvm::ArrayType>(alloc_type), array_const_elem));
+        } else {
+            if (!init_evals.empty()) {
+                ASSERT(init_evals.size() == 1);
+                if (auto const_int = init_evals[0].exp->test_constexpr()) {
+                    global_ptr->setInitializer(llvm::ConstantInt::get(
+                        builder->getInt32Ty(), *const_int));
+                    if (const_flag) const_values.push_back(*const_int);
+                } else {
+                    ASSERT(!const_flag);
+                    global_ptr->setInitializer(const_zero);
+                    builder->CreateStore(init_evals[0].exp->rvalue(*builder),
+                                         alloc_ptr);
+                }
+            } else {
+                global_ptr->setInitializer(const_zero);
+            }
+        }
+
+        builder->SetInsertPoint(current_bb);
+    } else {
+        if (is_array) {
+            for (size_t i = 0; i < std::min(init_evals.size(),
+                                            static_cast<size_t>(*array_count));
+                 i++) {
+                llvm::Value* index[]{builder->getInt32(0),
+                                     builder->getInt32(i)};
+                llvm::Value* ptr_to_elem =
+                    builder->CreateGEP(alloc_type, alloc_ptr, index,
+                                       "ptr.arr." + std::to_string(i));
+                builder->CreateStore(init_evals[i].exp->rvalue(*builder),
+                                     ptr_to_elem);
+            }
+        } else {
+            if (!init_evals.empty()) {
+                ASSERT(init_evals.size() == 1);
+                builder->CreateStore(init_evals[0].exp->rvalue(*builder),
+                                     alloc_ptr);
+            }
+        }
+    }
+
+    // Add to symbol table
     SymbolType type;
     type.base_type = SymbolBaseType::INT;
     type.const_flag = const_flag;
     type.static_flag = static_flag;
     type.is_array = is_array;
     type.array_count = array_count;
-    add_symbol(*ident, SymbolAttr{type});
-
-    if (node.children.get(Token::Type::ASSIGN)) {
-        const ASTNode* init_val =
-            node.children.get(const_flag ? ASTNode::Type::CONST_INIT_VAL
-                                         : ASTNode::Type::INIT_VAL);
-        ASSERT(init_val);
-        invoke_var_init_val(*init_val, const_flag);
-    }
+    SymbolAttr attr;
+    attr.type = type;
+    attr.addr_value = alloc_ptr;
+    attr.const_values = std::move(const_values);
+    add_symbol(*ident, attr);
 }
 
 // 常量初值
 // ConstInitVal -> ConstExp | '{' [ ConstExp { ',' ConstExp } ] '}'
 // 变量初值
 // InitVal -> Exp | '{' [ Exp { ',' Exp } ] '}'
-void Visitor::invoke_var_init_val(const ASTNode& node, bool const_flag) {
+std::vector<EvalResult> Visitor::invoke_var_init_val(const ASTNode& node,
+                                                     bool const_flag) {
     if (node.type != ASTNode::Type::INIT_VAL &&
         node.type != ASTNode::Type::CONST_INIT_VAL) {
         UNEXPECTED_TYPE(node.type);
     }
 
-    if (node.children.get(Token::Type::LBRACE)) {
-        // 一维数组初值
-        for (const ASTNode& exp : node.children.equal_range(
-                 const_flag ? ASTNode::Type::CONST_EXP : ASTNode::Type::EXP)) {
-            invoke_exp(exp, {const_flag});
-        }
-    } else {
-        // 表达式初值
-        const ASTNode* exp = node.children.get(
-            const_flag ? ASTNode::Type::CONST_EXP : ASTNode::Type::EXP);
-        ASSERT(exp);
-        invoke_exp(*exp, {const_flag});
+    std::vector<EvalResult> results;
+    for (const ASTNode& exp : node.children.equal_range(
+             const_flag ? ASTNode::Type::CONST_EXP : ASTNode::Type::EXP)) {
+        results.push_back(invoke_exp(exp, {}));
     }
+    return results;
 }
 
 // 函数定义
@@ -177,75 +325,135 @@ void Visitor::invoke_var_init_val(const ASTNode& node, bool const_flag) {
 //               只需要考虑函数末尾是否存在return语句，无需考虑控制流。
 //               报错行号为函数结尾的’}’所在行号。
 void Visitor::invoke_func_def(const ASTNode& node) {
-    bool main_func;
+    bool is_main_func;
     if (node.type == ASTNode::Type::MAIN_FUNC_DEF) {
-        main_func = true;
+        is_main_func = true;
     } else if (node.type == ASTNode::Type::FUNC_DEF) {
-        main_func = false;
+        is_main_func = false;
     } else {
         UNEXPECTED_TYPE(node.type);
     }
 
-    ScopeInfo scope_info = {};
-    if (main_func) {
+    // Return type used in
+    // 1. ScopeInfo
+    // 2. llvm function def
+    llvm::Type* llvm_return_type;
+    ScopeInfo scope_info;
+    if (is_main_func) {
         scope_info.return_type = SymbolBaseType::INT;
+        llvm_return_type = builder->getInt32Ty();
     } else {
         const ASTNode* func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
         ASSERT(func_type);
         if (func_type->children.get(Token::Type::INTTK)) {
             scope_info.return_type = SymbolBaseType::INT;
+            llvm_return_type = builder->getInt32Ty();
         } else if (func_type->children.get(Token::Type::VOIDTK)) {
             scope_info.return_type = SymbolBaseType::VOID;
+            llvm_return_type = builder->getVoidTy();
         } else {
             UNREACHABLE();
         }
     }
 
-    if (!main_func) {
-        const Token* ident = node.children.get(Token::Type::IDENFR);
-        ASSERT(ident);
-        SymbolType type;
-        type.base_type = scope_info.return_type;
-        type.is_function = true;
-        auto fill_back_handler = add_symbol(*ident, SymbolAttr{type});
+    // 1. function name & function_ident
+    // 2. function params
+    std::vector<std::tuple<SymbolType, Token>> params;
+    std::string_view function_name;
+    const Token* function_ident;
+    if (is_main_func) {
+        function_name = "main";
+    } else {
+        function_ident = node.children.get(Token::Type::IDENFR);
+        ASSERT(function_ident);
 
-        push_scope();
+        function_name = function_ident->content;
         if (const ASTNode* func_params =
                 node.children.get(ASTNode::Type::FUNC_PARAMS);
             func_params) {
-            auto params_eval = invoke_func_params(*func_params);
-            // 回填
-            SymbolType type;
-            type.base_type = scope_info.return_type;
-            type.function_params = std::move(params_eval);
-            type.is_function = true;
-            if (fill_back_handler) {
-                fill_back_attr(fill_back_handler.value(),
-                               SymbolAttr{std::move(type)});
-            }
+            params = invoke_func_params(*func_params);
         }
-    } else {
-        push_scope();
+    }
+
+    std::vector<SymbolType> params_types;
+    std::transform(params.begin(), params.end(),
+                   std::back_inserter(params_types),
+                   [](auto tuple) { return std::get<0>(tuple); });
+
+    std::vector<llvm::Type*> llvm_params_types;
+    std::transform(params_types.begin(), params_types.end(),
+                   std::back_inserter(llvm_params_types),
+                   [this](SymbolType symbol_type) -> llvm::Type* {
+                       if (symbol_type.is_array)
+                           return builder->getPtrTy();
+                       else
+                           return builder->getInt32Ty();
+                   });
+
+    auto* llvm_function_type =
+        llvm::FunctionType::get(llvm_return_type, llvm_params_types, false);
+    auto* llvm_function_value = llvm::Function::Create(
+        llvm_function_type, llvm::Function::ExternalLinkage, function_name,
+        *module);
+
+    // add function to symbol table
+    if (!is_main_func) {
+        SymbolAttr attr;
+        attr.type.base_type = scope_info.return_type;
+        attr.type.function_params = std::move(params_types);
+        attr.type.is_function = true;
+        attr.addr_value = llvm_function_value;
+        add_symbol(*function_ident, attr);
+    }
+
+    push_scope();
+    auto* entry_bb =
+        llvm::BasicBlock::Create(*context, "entry", llvm_function_value);
+    builder->SetInsertPoint(entry_bb);
+
+    // add params to symbol table
+    size_t i = 0;
+    for (auto& arg : llvm_function_value->args()) {
+        const auto& [type, ident] = params[i];
+        arg.setName(ident.content);
+        llvm::Value* arg_ptr;
+        if (!arg.getType()->isPointerTy()) {
+            arg_ptr = builder->CreateAlloca(arg.getType(), nullptr,
+                                            "alloc."s.append(ident.content));
+            builder->CreateStore(&arg, arg_ptr);
+        } else {
+            arg_ptr = &arg;
+        }
+
+        SymbolAttr attr;
+        attr.type = type;
+        attr.addr_value = arg_ptr;
+        add_symbol(ident, attr);
+        i++;
+    }
+
+    if (is_main_func) {
+        builder->CreateCall(init_global_func);
     }
 
     const ASTNode* block = node.children.get(ASTNode::Type::BLOCK);
     ASSERT(block);
-
     invoke_block(*block, scope_info);
     pop_scope();
 }
 
 // 函数形参表 FuncFParams -> FuncFParam { ',' FuncFParam }
-std::vector<SymbolType> Visitor::invoke_func_params(const ASTNode& node) {
+std::vector<std::tuple<SymbolType, Token>> Visitor::invoke_func_params(
+    const ASTNode& node) {
     ASSERT_AST_TYPE(FUNC_PARAMS, node);
 
-    std::vector<SymbolType> function_params;
+    std::vector<std::tuple<SymbolType, Token>> results;
     for (const auto& func_param :
          node.children.equal_range(ASTNode::Type::FUNC_PARAM)) {
         auto attr = invoke_func_param(func_param);
-        function_params.push_back(attr.type);
+        results.push_back(attr);
     }
-    return function_params;
+    return results;
 }
 
 // 函数形参 FuncFParam -> BType Ident ['[' ']']
@@ -253,7 +461,9 @@ std::vector<SymbolType> Visitor::invoke_func_params(const ASTNode& node) {
 //               函数名或者变量名在当前作用域下重复定义。
 //               注意，变量一定是同一级作用域下才会判定出错，不同级作用域下，内层会覆盖外层定义。
 //               报错行号 Ident 所在行数。
-SymbolAttr Visitor::invoke_func_param(const ASTNode& node) {
+// Note: 收集所有信息到 invoke_func_def 再处理报错 (invoke_func_def 调用
+//       add_symbol 即可)
+std::tuple<SymbolType, Token> Visitor::invoke_func_param(const ASTNode& node) {
     ASSERT_AST_TYPE(FUNC_PARAM, node);
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
@@ -262,9 +472,7 @@ SymbolAttr Visitor::invoke_func_param(const ASTNode& node) {
     bool is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
     SymbolType type;
     type.is_array = is_array;
-    SymbolAttr attr{type};
-    add_symbol(*ident, attr);
-    return attr;
+    return std::make_tuple(type, *ident);
 }
 
 // 语句块 Block -> '{' { Decl | Stmt } '}'
@@ -286,34 +494,42 @@ void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
         }
     }
 
-    if (scope_info.return_type == SymbolBaseType::INT &&
-        symbol_table.current_scope_level() == 1) {
+    // Error type: b
+    // LLVM 要求必须有 ret
+    if (symbol_table.current_scope_level() == 1) {
         // current_scope_level 限制只能为函数定义的block内
         bool has_last_return =
             last_stmt != nullptr &&
             last_stmt->children.get(Token::Type::RETURNTK) != nullptr;
         if (!has_last_return) {
-            const Token* rbrace = node.children.get(Token::Type::RBRACE);
-            ASSERT(rbrace);
-            error_infos.emplace_back(ErrorInfo{'g', rbrace->line, rbrace->col});
+            if (scope_info.return_type == SymbolBaseType::INT) {
+                const Token* rbrace = node.children.get(Token::Type::RBRACE);
+                ASSERT(rbrace);
+                reportError(ErrorInfo::Type::MISSING_RETURN, *rbrace,
+                            "Missing return in int function");
+                builder->CreateRet(builder->getInt32(0));
+            } else {
+                builder->CreateRetVoid();
+            }
         }
     }
 }
 
-static size_t count_specifiers(std::string_view strcon) {
-    bool prev_is_percent = false;
-    size_t result = 0;
-    for (char c : strcon) {
-        if (c == '%') {
-            prev_is_percent = true;
-            continue;
+template <typename F_deli, typename F_substr>
+static void split_string_skip_empty(std::string_view str,
+                                    std::string_view delimiter,
+                                    F_deli delimiter_handler,
+                                    F_substr substr_handler) {
+    size_t start = 0;
+    for (size_t end = str.find(delimiter); end != std::string_view::npos;
+         end = str.find(delimiter, start)) {
+        if (end > start) {  // 只有当子串非空时才添加
+            substr_handler(str.substr(start, end - start));
         }
-        if (prev_is_percent && c == 'd') {
-            result++;
-        }
-        prev_is_percent = false;
+        delimiter_handler();
+        start = end + delimiter.length();
     }
-    return result;
+    if (start < str.length()) substr_handler(str.substr(start));
 }
 
 // 语句 Stmt -> LVal '=' Exp ';'
@@ -340,25 +556,61 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
 
         // LVal 为常量时，不能对其修改。报错行号为 LVal 所在行号。
         if (lval_eval.type.const_flag) {
-            error_infos.emplace_back(
-                ErrorInfo{'h', lval_token.line, lval_token.col});
+            reportError(ErrorInfo::Type::CONST_ASSIGNMENT, lval_token,
+                        "Can not modify constant");
         }
 
         const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
-        invoke_exp(*exp);
+        EvalResult exp_eval = invoke_exp(*exp, {});
+        builder->CreateStore(exp_eval.exp->rvalue(*builder),
+                             lval_eval.exp->lvalue(*builder));
     };
 
     // 'if' '(' Cond ')' Stmt [ 'else' Stmt ]
     auto inner_invoke_if_stmt = [&]() {
         const ASTNode* cond = node.children.get(ASTNode::Type::COND);
         ASSERT(cond);
-        invoke_cond(*cond);
+        bool has_else = node.children.get(Token::Type::ELSETK) != nullptr;
 
-        for (const ASTNode& stmt :
-             node.children.equal_range(ASTNode::Type::STMT)) {
-            invoke_stmt(stmt, scope_info);
+        EvalOption::CondOption cond_option;
+
+        llvm::Function* this_function = builder->GetInsertBlock()->getParent();
+        ASSERT(this_function);
+        llvm::BasicBlock* then_bb =
+            llvm::BasicBlock::Create(*context, "if.then", this_function);
+        llvm::BasicBlock* else_bb = nullptr;
+        llvm::BasicBlock* merge_bb =
+            llvm::BasicBlock::Create(*context, "if.merge", this_function);
+        if (has_else) {
+            else_bb =
+                llvm::BasicBlock::Create(*context, "if.else", this_function);
+            cond_option.true_bb = then_bb;
+            cond_option.false_bb = else_bb;
+        } else {
+            cond_option.true_bb = then_bb;
+            cond_option.false_bb = merge_bb;
         }
+        EvalOption option;
+        option.cond_option = cond_option;
+        invoke_cond(*cond, option);
+
+        auto stmt_rg = node.children.equal_range(ASTNode::Type::STMT);
+        auto stmt_it = stmt_rg.begin();
+        ASSERT(stmt_it != stmt_rg.end());  // At least 1 element
+        builder->SetInsertPoint(then_bb);
+        invoke_stmt(*stmt_it, scope_info);
+        builder->CreateBr(merge_bb);
+
+        if (has_else) {
+            ++stmt_it;
+            ASSERT(stmt_it != stmt_rg.end());  // At least 2 element
+            builder->SetInsertPoint(else_bb);
+            invoke_stmt(*stmt_it, scope_info);
+            builder->CreateBr(merge_bb);
+        }
+
+        builder->SetInsertPoint(merge_bb);
     };
 
     // 'for' '(' [ForStmt] ';' [Cond] ';' [ForStmt] ')' Stmt
@@ -402,20 +654,61 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const ASTNode* stmt = node.children.get(ASTNode::Type::STMT);
         ASSERT(stmt);
 
-        if (for_stmt1) invoke_for_stmt(*for_stmt1);
-        if (cond) invoke_cond(*cond);
-        if (for_stmt2) invoke_for_stmt(*for_stmt2);
+        llvm::Function* this_function = builder->GetInsertBlock()->getParent();
+        ASSERT(this_function);
+        llvm::BasicBlock* loop_bb =
+            llvm::BasicBlock::Create(*context, "loop", this_function);
+        llvm::BasicBlock* cond_bb =
+            llvm::BasicBlock::Create(*context, "loop.cond", this_function);
+        llvm::BasicBlock* update_bb =
+            llvm::BasicBlock::Create(*context, "loop.update", this_function);
+        llvm::BasicBlock* after_bb =
+            llvm::BasicBlock::Create(*context, "loop.after", this_function);
 
-        scope_info.in_for_loop = true;
+        if (for_stmt1) invoke_for_stmt(*for_stmt1);
+        builder->CreateBr(cond_bb);
+
+        builder->SetInsertPoint(cond_bb);
+        if (cond) {
+            EvalOption::CondOption cond_option{loop_bb, after_bb};
+            EvalOption eval_option;
+            eval_option.cond_option = cond_option;
+            invoke_cond(*cond, eval_option);
+        } else {
+            builder->CreateBr(loop_bb);
+        }
+
+        builder->SetInsertPoint(update_bb);
+        if (for_stmt2) invoke_for_stmt(*for_stmt2);
+        builder->CreateBr(cond_bb);
+
+        builder->SetInsertPoint(loop_bb);
+        scope_info.for_info = ScopeInfo::ForInfo{update_bb, after_bb};
         invoke_stmt(*stmt, scope_info);
+        builder->CreateBr(update_bb);
+
+        builder->SetInsertPoint(after_bb);
     };
 
     // Error type: m 在非循环块中使 用break和continue语句
     //               报错行号为 ‘break’ 与 ’continue’ 所在行号。
-    auto inner_invoke_break_continue = [&](const Token& break_continue_tok) {
-        if (!scope_info.in_for_loop) {
-            error_infos.emplace_back(ErrorInfo{'m', break_continue_tok.line,
-                                               break_continue_tok.col});
+    auto inner_invoke_break = [&](const Token& break_tok) {
+        if (!scope_info.in_for()) {
+            reportError(ErrorInfo::Type::BREAK_CONTINUE_OUT_OF_LOOP, break_tok,
+                        "Unexpected break out of loop");
+        } else {
+            builder->CreateBr(scope_info.for_info->after_bb);
+        }
+    };
+
+    // Error type: m 在非循环块中使 用break和continue语句
+    //               报错行号为 ‘break’ 与 ’continue’ 所在行号。
+    auto inner_invoke_continue = [&](const Token& continue_tok) {
+        if (!scope_info.for_info) {
+            reportError(ErrorInfo::Type::BREAK_CONTINUE_OUT_OF_LOOP,
+                        continue_tok, "Unexpected continue out of loop");
+        } else {
+            builder->CreateBr(scope_info.for_info->update_bb);
         }
     };
 
@@ -423,13 +716,16 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     // Error type: f
     auto inner_invoke_return_stmt = [&](const Token& return_tok) {
         if (const ASTNode* exp = node.children.get(ASTNode::Type::EXP)) {
-            invoke_exp(*exp);
+            EvalResult eval = invoke_exp(*exp, {});
             if (scope_info.return_type == SymbolBaseType::VOID) {
                 // 无返回值的函数 存在不匹配的 return语句
                 // 报错行号为‘return’所在行号。
-                error_infos.emplace_back(
-                    ErrorInfo{'f', return_tok.line, return_tok.col});
+                reportError(ErrorInfo::Type::RETURN_MISMATCH, return_tok,
+                            "Unexpected return in void function");
             }
+            builder->CreateRet(eval.exp->rvalue(*builder));
+        } else {
+            builder->CreateRetVoid();
         }
     };
 
@@ -442,18 +738,41 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const Token* string_const = node.children.get(Token::Type::STRCON);
         ASSERT(string_const);
 
-        size_t exp_count = 0;
+        std::vector<EvalResult> args;
         for (const ASTNode& exp :
              node.children.equal_range(ASTNode::Type::EXP)) {
-            invoke_exp(exp);
-            exp_count++;
+            args.push_back(invoke_exp(exp, {}));
         }
 
+        std::string_view str_ref = string_const->content;
+        str_ref = str_ref.substr(
+            1, str_ref.length() - 2);  // remove first and last '""
+
+        // replace '\n'
+        std::string str;
+        split_string_skip_empty(
+            str_ref, "\\n", [&str]() { str.push_back('\n'); },
+            [&str](std::string_view substr) { str.append(substr); });
+
+        size_t specifier_count = 0;
+        split_string_skip_empty(
+            str, "%d",
+            [this, &specifier_count, &args]() {
+                if (args.size() > specifier_count) {
+                    EvalResult& eval = args[specifier_count];
+                    builder->CreateCall(putint_func,
+                                        {eval.exp->rvalue(*builder)});
+                }
+                specifier_count++;
+            },
+            [this](std::string_view substr) {
+                auto* str_value = builder->CreateGlobalString(substr, ".str");
+                builder->CreateCall(putstr_func, {str_value});
+            });
         // Error 'l'
-        size_t specifier_count = count_specifiers(string_const->content);
-        if (specifier_count != exp_count) {
-            error_infos.emplace_back(
-                ErrorInfo{'l', printf_token->line, printf_token->col});
+        if (specifier_count != args.size()) {
+            reportError(ErrorInfo::Type::PRINTF_FORMAT_MISMATCH, *printf_token,
+                        "Printf format mismatch");
         }
     };
 
@@ -462,9 +781,11 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
             case ASTNode::Type::L_VAL:
                 inner_invoke_assign_stmt(first_child);
                 break;
-            case ASTNode::Type::EXP:
-                invoke_exp(*first_child);
+            case ASTNode::Type::EXP: {
+                EvalResult exp_eval = invoke_exp(*first_child, {});
+                exp_eval.exp->rvalue(*builder);
                 break;
+            }
             case ASTNode::Type::BLOCK:
                 push_scope();
                 invoke_block(*first_child, scope_info);
@@ -486,8 +807,10 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
                 inner_invoke_for_stmt();
                 break;
             case Token::Type::BREAKTK:
+                inner_invoke_break(token);
+                break;
             case Token::Type::CONTINUETK:
-                inner_invoke_break_continue(token);
+                inner_invoke_continue(token);
                 break;
             case Token::Type::RETURNTK:
                 inner_invoke_return_stmt(token);
@@ -525,11 +848,13 @@ void Visitor::invoke_for_stmt(const ASTNode& node) {
 
         // LVal 为常量时，不能对其修改。报错行号为 LVal 所在行号。
         if (lval_eval.type.const_flag) {
-            error_infos.emplace_back(
-                ErrorInfo{'h', lval_token.line, lval_token.col});
+            reportError(ErrorInfo::Type::CONST_ASSIGNMENT, lval_token,
+                        "Can not modify constant");
         }
 
-        invoke_exp(exp);
+        EvalResult exp_eval = invoke_exp(exp, {});
+        builder->CreateStore(exp_eval.exp->rvalue(*builder),
+                             lval_eval.exp->lvalue(*builder));
     }
 }
 
@@ -548,12 +873,13 @@ EvalResult Visitor::invoke_exp(const ASTNode& node, EvalOption option) {
 
 // 条件表达式
 // Cond -> LOrExp
-EvalResult Visitor::invoke_cond(const ASTNode& node, EvalOption option) {
+void Visitor::invoke_cond(const ASTNode& node, EvalOption option) {
     ASSERT_AST_TYPE(COND, node);
+    ASSERT(option.in_boolean_context());
 
     const ASTNode* lor_exp = node.children.get(ASTNode::Type::LOR_EXP);
     ASSERT(lor_exp);
-    return invoke_lor_exp(*lor_exp, option);
+    invoke_lor_exp(*lor_exp, option);
 }
 
 // 基本表达式
@@ -565,11 +891,10 @@ EvalResult Visitor::invoke_primary_exp(const ASTNode& node, EvalOption option) {
         return invoke_exp(*exp, option);
     } else if (const ASTNode* lval = node.children.get(ASTNode::Type::L_VAL)) {
         auto [lval_eval, lval_token] = invoke_lval(*lval);
-        return lval_eval;
+        return std::move(lval_eval);
     } else if (const ASTNode* number =
                    node.children.get(ASTNode::Type::NUMBER)) {
-        auto [number_eval, intcon_token] = invoke_number(*number);
-        return number_eval;
+        return invoke_number(*number);
     } else {
         UNREACHABLE();
     }
@@ -586,17 +911,35 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) {
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
-    const auto* record = symbol_table.find(ident->content);
+    const SymbolTable::Record* record = symbol_table.find(ident->content);
     if (record == nullptr) {
-        error_infos.emplace_back(ErrorInfo{'c', ident->line, ident->col});
+        reportError(ErrorInfo::Type::UNDEFINED_IDENT, *ident,
+                    "Use of undefined ident");
     }
 
-    bool has_index = false;
+    bool has_index;
+    std::unique_ptr<Exp> ret_exp;
     if (node.children.get(Token::Type::LBRACK)) {
         const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
-        invoke_exp(*exp);
+        EvalResult exp_eval = invoke_exp(*exp, {});
+        if (record)
+            ret_exp = std::make_unique<ArrayAccessExp>(*record,
+                                                       std::move(exp_eval.exp));
         has_index = true;
+    } else {
+        if (record) {
+            if (record->attr.type.is_array) {
+                ret_exp = std::make_unique<PtrVarExp>(*record);
+            } else {
+                ret_exp = std::make_unique<IntVarExp>(*record);
+            }
+        }
+        has_index = false;
+    }
+
+    if (!record) {
+        ret_exp = std::make_unique<PoisonIntVarExp>();
     }
 
     SymbolType type;
@@ -606,11 +949,14 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) {
             type.is_array = false;
         }
     }
-    return std::make_tuple(EvalResult{type}, *ident);
+    EvalResult result;
+    result.type = type;
+    result.exp = std::move(ret_exp);
+    return std::make_tuple(std::move(result), *ident);
 }
 
-static int evaluate_number(std::string_view intcon) {
-    int result = 0;
+static int32_t evaluate_number(std::string_view intcon) {
+    int32_t result = 0;
     for (char c : intcon) {
         result = result * 10 + (c - '0');
     }
@@ -618,15 +964,17 @@ static int evaluate_number(std::string_view intcon) {
 }
 
 // 数值 Number -> IntConst
-std::tuple<EvalResult, Token> Visitor::invoke_number(const ASTNode& node) {
+EvalResult Visitor::invoke_number(const ASTNode& node) {
     ASSERT_AST_TYPE(NUMBER, node);
 
     const Token* intcon = node.children.get(Token::Type::INTCON);
     ASSERT(intcon);
-    int value = evaluate_number(intcon->content);
-    SymbolType type;
-    type.const_flag = true;
-    return std::make_tuple(EvalResult{type, value}, *intcon);
+    int32_t value = evaluate_number(intcon->content);
+
+    EvalResult eval_result;
+    eval_result.type.const_flag = true;
+    eval_result.exp = std::make_unique<IntLiteralExp>(value);
+    return eval_result;
 }
 
 // 一元表达式
@@ -645,70 +993,67 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node, EvalOption option) {
             node.children.get(ASTNode::Type::PRIMARY_EXP)) {
         return invoke_primary_exp(*primary_exp, option);
     } else if (const Token* ident = node.children.get(Token::Type::IDENFR)) {
+        ASSERT(!option.in_constexpr_context);
         if (const auto* record = symbol_table.find(ident->content)) {
             ASSERT(record->attr.type.is_function);
             const std::vector<SymbolType>& fparams =
                 record->attr.type.function_params;
 
             // 处理函数参数
+            std::vector<EvalResult> rparams;
             if (const ASTNode* func_rparams =
                     node.children.get(ASTNode::Type::FUNC_RPARAMS)) {
-                std::vector<EvalResult> rparams =
-                    invoke_func_rparams(*func_rparams, option);
+                rparams = invoke_func_rparams(*func_rparams, option);
+            }
+            if (fparams.size() != rparams.size()) {  // 函数参数个数不匹配
+                reportError(ErrorInfo::Type::FUNC_ARG_COUNT_MISMATCH, *ident,
+                            "Func arg count mismatch");
+            } else {  // 函数参数类型不匹配
+                auto fparam_it = fparams.begin();
+                auto rparam_it = rparams.begin();
+                for (; fparam_it != fparams.end(); ++fparam_it, ++rparam_it) {
+                    ASSERT(rparam_it != rparams.end());
 
-                if (fparams.size() != rparams.size()) {  // 函数参数个数不匹配
-                    error_infos.emplace_back(
-                        ErrorInfo{'d', ident->line, ident->col});
-                } else {  // 函数参数类型不匹配
-                    auto fparam_it = fparams.begin();
-                    auto rparam_it = rparams.begin();
-                    for (; fparam_it != fparams.end();
-                         ++fparam_it, ++rparam_it) {
-                        ASSERT(rparam_it != rparams.end());
-
-                        // 对于调用函数时，参数类型不匹配一共有以下几种情况的不匹配：
-                        // - 传递数组给变量。
-                        // - 传递变量给数组。
-                        if (fparam_it->is_array != rparam_it->type.is_array) {
-                            error_infos.emplace_back(
-                                ErrorInfo{'e', ident->line, ident->col});
-                        }
+                    // 对于调用函数时，参数类型不匹配一共有以下几种情况的不匹配：
+                    // - 传递数组给变量。
+                    // - 传递变量给数组。
+                    if (fparam_it->is_array != rparam_it->type.is_array) {
+                        reportError(ErrorInfo::Type::FUNC_ARG_TYPE_MISMATCH,
+                                    *ident, "");
                     }
                 }
             }
 
+            // return void 函数不能有 name
+            std::vector<std::unique_ptr<Exp>> args_exp;
+            std::transform(
+                rparams.begin(), rparams.end(), std::back_inserter(args_exp),
+                [](EvalResult& result) { return std::move(result.exp); });
+            auto call_exp =
+                std::make_unique<FuncCallExp>(*record, std::move(args_exp));
+
+            EvalResult result;
+            result.exp = std::move(call_exp);
             // 处理返回值
             // ASSERT(record->attr.base_type != SymbolBaseType::VOID);
-            SymbolType type;
-            type.base_type = record->attr.type.base_type;
-            type.is_array = record->attr.type.is_array;
-            return {type};
+            result.type.base_type = record->attr.type.base_type;
+            result.type.is_array = record->attr.type.is_array;
+            return result;
         } else {
-            error_infos.emplace_back(ErrorInfo{'c', ident->line, ident->col});
-            return {};
+            reportError(ErrorInfo::Type::UNDEFINED_IDENT, *ident,
+                        "Undefined ident");
+            EvalResult result;
+            result.exp = std::make_unique<PoisonIntVarExp>();
+            return result;
         }
     } else if (const ASTNode* unary_op =
                    node.children.get(ASTNode::Type::UNARY_OP)) {
         const Token& op_token = invoke_unary_op(*unary_op);
         const ASTNode* unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
         ASSERT(unary_exp);
-        auto unary_exp_eval = invoke_unary_exp(*unary_exp);
-        if (unary_exp_eval.constexpr_value) {
-            switch (op_token.type) {
-                case Token::Type::PLUS:
-                    break;
-                case Token::Type::MINU:
-                    *unary_exp_eval.constexpr_value =
-                        -*unary_exp_eval.constexpr_value;
-                    break;
-                case Token::Type::NOT:
-                    *unary_exp_eval.constexpr_value =
-                        !*unary_exp_eval.constexpr_value;
-                    break;
-                default:
-                    UNREACHABLE();
-            }
-        }
+        auto unary_exp_eval = invoke_unary_exp(*unary_exp, option);
+        unary_exp_eval.exp = std::make_unique<UnaryExp>(
+            op_token.type, std::move(unary_exp_eval.exp));
         return unary_exp_eval;
     } else {
         UNREACHABLE();
@@ -733,8 +1078,7 @@ std::vector<EvalResult> Visitor::invoke_func_rparams(const ASTNode& node,
                                                      EvalOption option) {
     std::vector<EvalResult> evals;
     for (const ASTNode& exp : node.children.equal_range(ASTNode::Type::EXP)) {
-        EvalResult eval = invoke_exp(exp, option);
-        evals.push_back(eval);
+        evals.push_back(invoke_exp(exp, option));
     }
     return evals;
 }
@@ -757,7 +1101,7 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node, EvalOption option) {
 
     auto result1 = invoke_unary_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
+        const auto& op = std::get<Token>(*it);
         ++it;
 
         const auto& child = std::get<NodePtr>(*it);
@@ -765,14 +1109,10 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node, EvalOption option) {
         auto result2 = invoke_unary_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
-        if (result1.constexpr_value && result2.constexpr_value) {
-            *result1.constexpr_value =
-                *result1.constexpr_value * *result2.constexpr_value;
-        }
-    }
 
+        result1.exp = std::make_unique<BinaryOpIntExp>(
+            op.type, std::move(result1.exp), std::move(result2.exp));
+    }
     return result1;
 }
 
@@ -787,7 +1127,7 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node, EvalOption option) {
 
     auto result1 = invoke_mul_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
+        const auto& op = std::get<Token>(*it);
         ++it;
 
         const auto& child = std::get<NodePtr>(*it);
@@ -795,12 +1135,9 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node, EvalOption option) {
         auto result2 = invoke_mul_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
-        if (result1.constexpr_value && result2.constexpr_value) {
-            *result1.constexpr_value =
-                *result1.constexpr_value + *result2.constexpr_value;
-        }
+
+        result1.exp = std::make_unique<BinaryOpIntExp>(
+            op.type, std::move(result1.exp), std::move(result2.exp));
     }
 
     return result1;
@@ -815,6 +1152,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node, EvalOption option) {
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
+    ASSERT(option.in_boolean_context());
     auto result1 = invoke_add_exp(*child, option);
     while (it != node.children.end()) {
         [[maybe_unused]] const auto& op = std::get<Token>(*it);
@@ -825,8 +1163,9 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node, EvalOption option) {
         auto result2 = invoke_add_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
+
+        result1.exp = std::make_unique<BinaryOpBoolExp>(
+            op.type, std::move(result1.exp), std::move(result2.exp));
     }
 
     return result1;
@@ -841,9 +1180,10 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node, EvalOption option) {
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
+    ASSERT(option.in_boolean_context());
     auto result1 = invoke_rel_exp(*child, option);
     while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
+        const auto& op = std::get<Token>(*it);
         ++it;
 
         const auto& child = std::get<NodePtr>(*it);
@@ -851,8 +1191,9 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node, EvalOption option) {
         auto result2 = invoke_rel_exp(*child, option);
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
+
+        result1.exp = std::make_unique<BinaryOpBoolExp>(
+            op.type, std::move(result1.exp), std::move(result2.exp));
     }
 
     return result1;
@@ -862,52 +1203,67 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node, EvalOption option) {
 // LAndExp -> EqExp | LAndExp '&&' EqExp
 // Modified:
 //     LAndExp -> EqExp { '&&' EqExp }
-EvalResult Visitor::invoke_land_exp(const ASTNode& node, EvalOption option) {
-    auto it = node.children.begin();
-    const auto& child = std::get<NodePtr>(*it);
-    ++it;
+void Visitor::invoke_land_exp(const ASTNode& node, EvalOption option) {
+    ASSERT(option.in_boolean_context());
 
-    auto result1 = invoke_eq_exp(*child, option);
-    while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
-        ++it;
+    std::vector<std::reference_wrapper<const ASTNode>> collector;
+    auto rg = node.children.equal_range(ASTNode::Type::EQ_EXP);
+    std::copy(rg.begin(), rg.end(), std::back_inserter(collector));
 
-        const auto& child = std::get<NodePtr>(*it);
-        ++it;
-        auto result2 = invoke_eq_exp(*child, option);
-        ASSERT_CALCABLE(result1.type);
-        ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
+    auto* true_bb = option.cond_option->true_bb;
+    auto* false_bb = option.cond_option->false_bb;
+    size_t size = collector.size();
+    for (size_t i = 0; i < size; i++) {
+        auto child = collector[i];
+        llvm::BasicBlock* next_bb;
+        if (i == size - 1)
+            next_bb = true_bb;
+        else
+            next_bb = llvm::BasicBlock::Create(
+                *context, "land.next", builder->GetInsertBlock()->getParent());
+        option.cond_option = EvalOption::CondOption{next_bb, false_bb};
+
+        EvalResult eq_eval = invoke_eq_exp(child.get(), option);
+        llvm::Value* llvm_value = eq_eval.exp->rvalue(*builder);
+        ASSERT(eq_eval.exp->type() == Exp::T_INT ||
+               eq_eval.exp->type() == Exp::T_BOOL);
+        if (eq_eval.exp->type() == Exp::T_INT) {
+            llvm_value = builder->CreateICmpNE(llvm_value, builder->getInt32(0),
+                                               "tobool");
+        }
+        builder->CreateCondBr(llvm_value, option.cond_option->true_bb,
+                              option.cond_option->false_bb);
+
+        builder->SetInsertPoint(next_bb);
     }
-
-    return result1;
 }
 
 // 辑或表达式
 // LOrExp -> LAndExp | LOrExp '||' LAndExp
 // Modified:
 //     LOrExp -> LAndExp { '||' LAndExp }
-EvalResult Visitor::invoke_lor_exp(const ASTNode& node, EvalOption option) {
-    auto it = node.children.begin();
-    const auto& child = std::get<NodePtr>(*it);
-    ++it;
+void Visitor::invoke_lor_exp(const ASTNode& node, EvalOption option) {
+    ASSERT(option.in_boolean_context());
 
-    auto result1 = invoke_land_exp(*child, option);
-    while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
-        ++it;
+    std::vector<std::reference_wrapper<const ASTNode>> collector;
+    auto rg = node.children.equal_range(ASTNode::Type::LAND_EXP);
+    std::copy(rg.begin(), rg.end(), std::back_inserter(collector));
 
-        const auto& child = std::get<NodePtr>(*it);
-        ++it;
-        auto result2 = invoke_land_exp(*child, option);
-        ASSERT_CALCABLE(result1.type);
-        ASSERT_CALCABLE(result2.type);
-        result1.type.const_flag =
-            result1.type.const_flag && result2.type.const_flag;
+    auto* true_bb = option.cond_option->true_bb;
+    auto* false_bb = option.cond_option->false_bb;
+    size_t size = collector.size();
+    for (size_t i = 0; i < size; i++) {
+        auto child = collector[i];
+        llvm::BasicBlock* next_bb;
+        if (i == size - 1)
+            next_bb = false_bb;
+        else
+            next_bb = llvm::BasicBlock::Create(
+                *context, "lor.next", builder->GetInsertBlock()->getParent());
+        option.cond_option = EvalOption::CondOption{true_bb, next_bb};
+        invoke_land_exp(child.get(), option);
+        builder->SetInsertPoint(next_bb);
     }
-
-    return result1;
 }
 
 void Visitor::push_scope() {
@@ -924,27 +1280,27 @@ void Visitor::pop_scope() {
 
 // 如果当前作用域没有重名符号定义，则将符号加入符号表
 // 否则不执行操作，记录错误
-std::optional<Visitor::SymbolAttrFillBackHandler> Visitor::add_symbol(
-    Token idenfr_token, SymbolAttr attr, char error_type) {
+void Visitor::add_symbol(Token idenfr_token, SymbolAttr attr) {
     ASSERT_TOKEN_TYPE(IDENFR, idenfr_token);
 
     if (symbol_table.exist_in_scope(idenfr_token.content)) {
-        error_infos.emplace_back(
-            ErrorInfo{error_type, idenfr_token.line, idenfr_token.col});
-        return std::nullopt;
+        reportError(ErrorInfo::Type::REDEFINED_IDENT, idenfr_token,
+                    "Refined ident");
+        // return {};
     } else {
-        auto& attr_ref =
-            symbol_table.try_add_symbol(idenfr_token.content, attr);
+        // auto& attr_ref =
+        symbol_table.try_add_symbol(idenfr_token.content, attr);
 
-        size_t index = records.size();
+        // size_t index = records.size();
         records.emplace_back(
             SymbolRecord{current_scope, idenfr_token.content, attr});
-        return SymbolAttrFillBackHandler{attr_ref, index};
+        // return std::make_unique<SymbolAttrFillBackHandler>(
+        //     SymbolAttrFillBackHandler{attr_ref, index});
     }
 }
 
-void Visitor::fill_back_attr(const SymbolAttrFillBackHandler& handler,
-                             const SymbolAttr& attr) {
-    handler.attr_in_symbol_table = attr;
-    records.at(handler.attr_record_index).attr = attr;
-}
+// void Visitor::fill_back_attr(const SymbolAttrFillBackHandler& handler,
+//                              const SymbolAttr& attr) {
+//     handler.attr_in_symbol_table = attr;
+//     records.at(handler.attr_record_index).attr = attr;
+// }

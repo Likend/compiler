@@ -38,7 +38,7 @@ class Lexer {
         Token tok;
 
        public:
-        TokenIterator() {}
+        TokenIterator() = default;
 
         TokenIterator(std::string_view src, It start) : src(src), it(start) {
             do {

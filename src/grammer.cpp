@@ -189,7 +189,7 @@ struct ParseToken {
         if (token.type == Token::Type::ERROR) {
             if ((*token.content.data() == '&' && type == Token::Type::AND) ||
                 (*token.content.data() == '|' && type == Token::Type::OR)) {
-                error_infos.emplace_back(ErrorInfo{'a', token.line, token.col});
+                reportError(ErrorInfo::Type::ERROR_TOKEN, token, "Error token");
                 bundle.container.insert(token);
                 ++bundle.it;
                 bundle.last_token = token;
@@ -200,17 +200,17 @@ struct ParseToken {
     }
 };
 
-template <Token::Type type, char error_type>
+template <Token::Type type, ErrorInfo::Type error_type>
 struct ParseTokenRequired {
     bool operator()(ParserContext bundle) {
         bool result = ParseToken<type>{}(bundle.update_strict(true));
         if (!result) {
-            error_infos.emplace_back(
-                ErrorInfo{error_type, bundle.last_token.line,
-                          bundle.last_token.col +
-                              bundle.last_token.content.size()});
-            bundle.container.insert(
-                Token{type, token_type_name(type), 0, 0});
+            Token error;
+            error.line = bundle.last_token.line;
+            error.col =
+                bundle.last_token.col + bundle.last_token.content.size();
+            error_infos.emplace_back(ErrorInfo{error_type, error, ""});
+            bundle.container.insert(Token{type, token_type_name(type), 0, 0});
         }
         return true;
     }
@@ -297,17 +297,18 @@ struct Define {
 #define OPTIONAL(parser) Optional<parser>
 #define SEVERAL(parser) Several<parser>
 #define TOKEN(type) ParseToken<Token::Type::type>
-#define TOKEN_R(type, err) ParseTokenRequired<Token::Type::type, err>
+#define TOKEN_R(type, err) \
+    ParseTokenRequired<Token::Type::type, ErrorInfo::Type::err>
 #define NODE(type) ParseNode<ASTNode::Type::type>
 
 DEFINE(COMP_UNIT, SEVERAL(OR(NODE(FUNC_DEF), NODE(MAIN_FUNC_DEF), NODE(DECL))));
 ASSIGN(DECL, OR(NODE(CONST_DECL), NODE(VAR_DECL)));
 DEFINE(CONST_DECL, CONCAT(TOKEN(CONSTTK), TOKEN(INTTK), NODE(CONST_DEF),
                           SEVERAL(CONCAT(TOKEN(COMMA), NODE(CONST_DEF))),
-                          TOKEN_R(SEMICN, 'i')));
+                          TOKEN_R(SEMICN, MISSING_SEMICOLON)));
 DEFINE(CONST_DEF, CONCAT(TOKEN(IDENFR),
                          OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP),
-                                         TOKEN_R(RBRACK, 'k'))),
+                                         TOKEN_R(RBRACK, MISSING_RBRACKET))),
                          TOKEN(ASSIGN), NODE(CONST_INIT_VAL)));
 DEFINE(
     CONST_INIT_VAL,
@@ -318,10 +319,10 @@ DEFINE(
               TOKEN(RBRACE))));
 DEFINE(VAR_DECL, CONCAT(OPTIONAL(TOKEN(STATICTK)), TOKEN(INTTK), NODE(VAR_DEF),
                         SEVERAL(CONCAT(TOKEN(COMMA), NODE(VAR_DEF))),
-                        TOKEN_R(SEMICN, 'i')));
+                        TOKEN_R(SEMICN, MISSING_SEMICOLON)));
 DEFINE(VAR_DEF, CONCAT(TOKEN(IDENFR),
                        OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(CONST_EXP),
-                                       TOKEN_R(RBRACK, 'k'))),
+                                       TOKEN_R(RBRACK, MISSING_RBRACKET))),
                        OPTIONAL(CONCAT(TOKEN(ASSIGN), NODE(INIT_VAL)))));
 DEFINE(INIT_VAL,
        OR(NODE(EXP),
@@ -329,47 +330,54 @@ DEFINE(INIT_VAL,
                  OPTIONAL(CONCAT(NODE(EXP),
                                  SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP))))),
                  TOKEN(RBRACE))));
-DEFINE(FUNC_DEF,
-       CONCAT(NODE(FUNC_TYPE), TOKEN(IDENFR), TOKEN(LPARENT),
-              OPTIONAL(NODE(FUNC_PARAMS)), TOKEN_R(RPARENT, 'j'), NODE(BLOCK)));
+DEFINE(FUNC_DEF, CONCAT(NODE(FUNC_TYPE), TOKEN(IDENFR), TOKEN(LPARENT),
+                        OPTIONAL(NODE(FUNC_PARAMS)),
+                        TOKEN_R(RPARENT, MISSING_RPAREN), NODE(BLOCK)));
 DEFINE(MAIN_FUNC_DEF, CONCAT(TOKEN(INTTK), TOKEN(MAINTK), TOKEN(LPARENT),
-                             TOKEN_R(RPARENT, 'j'), NODE(BLOCK)));
+                             TOKEN_R(RPARENT, MISSING_RPAREN), NODE(BLOCK)));
 DEFINE(FUNC_TYPE, OR(TOKEN(VOIDTK), TOKEN(INTTK)));
 DEFINE(FUNC_PARAMS, CONCAT(NODE(FUNC_PARAM),
                            SEVERAL(CONCAT(TOKEN(COMMA), NODE(FUNC_PARAM)))));
-DEFINE(FUNC_PARAM,
-       CONCAT(TOKEN(INTTK), TOKEN(IDENFR),
-              OPTIONAL(CONCAT(TOKEN(LBRACK), TOKEN_R(RBRACK, 'k')))));
+DEFINE(FUNC_PARAM, CONCAT(TOKEN(INTTK), TOKEN(IDENFR),
+                          OPTIONAL(CONCAT(TOKEN(LBRACK),
+                                          TOKEN_R(RBRACK, MISSING_RBRACKET)))));
 DEFINE(BLOCK, CONCAT(TOKEN(LBRACE), SEVERAL(OR(NODE(DECL), NODE(STMT))),
                      TOKEN(RBRACE)));
-DEFINE(STMT,
-       OR(CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP), TOKEN_R(SEMICN, 'i')),
-          CONCAT(NODE(EXP), TOKEN_R(SEMICN, 'i')), TOKEN(SEMICN), NODE(BLOCK),
-          CONCAT(TOKEN(IFTK), TOKEN(LPARENT), NODE(COND), TOKEN_R(RPARENT, 'j'),
-                 NODE(STMT), OPTIONAL(CONCAT(TOKEN(ELSETK), NODE(STMT)))),
-          CONCAT(TOKEN(FORTK), TOKEN(LPARENT), OPTIONAL(NODE(FOR_STMT)),
-                 TOKEN(SEMICN), OPTIONAL(NODE(COND)), TOKEN(SEMICN),
-                 OPTIONAL(NODE(FOR_STMT)), TOKEN_R(RPARENT, 'j'), NODE(STMT)),
-          CONCAT(TOKEN(BREAKTK), TOKEN_R(SEMICN, 'i')),
-          CONCAT(TOKEN(CONTINUETK), TOKEN_R(SEMICN, 'i')),
-          CONCAT(TOKEN(RETURNTK), OPTIONAL(NODE(EXP)), TOKEN_R(SEMICN, 'i')),
-          CONCAT(TOKEN(PRINTFTK), TOKEN(LPARENT), TOKEN(STRCON),
-                 SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP))),
-                 TOKEN_R(RPARENT, 'j'), TOKEN_R(SEMICN, 'i'))));
+DEFINE(STMT, OR(CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP),
+                       TOKEN_R(SEMICN, MISSING_SEMICOLON)),
+                CONCAT(NODE(EXP), TOKEN_R(SEMICN, MISSING_SEMICOLON)),
+                TOKEN(SEMICN), NODE(BLOCK),
+                CONCAT(TOKEN(IFTK), TOKEN(LPARENT), NODE(COND),
+                       TOKEN_R(RPARENT, MISSING_RPAREN), NODE(STMT),
+                       OPTIONAL(CONCAT(TOKEN(ELSETK), NODE(STMT)))),
+                CONCAT(TOKEN(FORTK), TOKEN(LPARENT), OPTIONAL(NODE(FOR_STMT)),
+                       TOKEN(SEMICN), OPTIONAL(NODE(COND)), TOKEN(SEMICN),
+                       OPTIONAL(NODE(FOR_STMT)),
+                       TOKEN_R(RPARENT, MISSING_RPAREN), NODE(STMT)),
+                CONCAT(TOKEN(BREAKTK), TOKEN_R(SEMICN, MISSING_SEMICOLON)),
+                CONCAT(TOKEN(CONTINUETK), TOKEN_R(SEMICN, MISSING_SEMICOLON)),
+                CONCAT(TOKEN(RETURNTK), OPTIONAL(NODE(EXP)),
+                       TOKEN_R(SEMICN, MISSING_SEMICOLON)),
+                CONCAT(TOKEN(PRINTFTK), TOKEN(LPARENT), TOKEN(STRCON),
+                       SEVERAL(CONCAT(TOKEN(COMMA), NODE(EXP))),
+                       TOKEN_R(RPARENT, MISSING_RPAREN),
+                       TOKEN_R(SEMICN, MISSING_SEMICOLON))));
 DEFINE(FOR_STMT, CONCAT(NODE(L_VAL), TOKEN(ASSIGN), NODE(EXP),
                         SEVERAL(CONCAT(TOKEN(COMMA), NODE(L_VAL), TOKEN(ASSIGN),
                                        NODE(EXP)))));
 DEFINE(EXP, NODE(ADD_EXP));
 DEFINE(CONST_EXP, NODE(ADD_EXP));
 DEFINE(COND, NODE(LOR_EXP));
-DEFINE(L_VAL, CONCAT(TOKEN(IDENFR), OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(EXP),
-                                                    TOKEN_R(RBRACK, 'k')))));
-DEFINE(PRIMARY_EXP, OR(CONCAT(TOKEN(LPARENT), NODE(EXP), TOKEN_R(RPARENT, 'j')),
-                       NODE(L_VAL), NODE(NUMBER)));
+DEFINE(L_VAL, CONCAT(TOKEN(IDENFR),
+                     OPTIONAL(CONCAT(TOKEN(LBRACK), NODE(EXP),
+                                     TOKEN_R(RBRACK, MISSING_RBRACKET)))));
+DEFINE(PRIMARY_EXP,
+       OR(CONCAT(TOKEN(LPARENT), NODE(EXP), TOKEN_R(RPARENT, MISSING_RPAREN)),
+          NODE(L_VAL), NODE(NUMBER)));
 DEFINE(NUMBER, TOKEN(INTCON));
 DEFINE(UNARY_EXP,
        OR(CONCAT(TOKEN(IDENFR), TOKEN(LPARENT), OPTIONAL(NODE(FUNC_RPARAMS)),
-                 TOKEN_R(RPARENT, 'j')),
+                 TOKEN_R(RPARENT, MISSING_RPAREN)),
           NODE(PRIMARY_EXP), CONCAT(NODE(UNARY_OP), NODE(UNARY_EXP))));
 DEFINE(UNARY_OP, OR(TOKEN(PLUS), TOKEN(MINU), TOKEN(NOT)));
 DEFINE(FUNC_RPARAMS,

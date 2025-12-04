@@ -1,21 +1,26 @@
+#pragma once
+
+#include <cstddef>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 
-#define ANNOTATE_LOCATION(os) \
-    os << '(' << __FUNCTION__ << " @ " << __FILE__ << ':' << __LINE__ << ')'
+[[noreturn]] static inline void assert_throw(std::string_view err_msg,
+                                             std::string_view func_name,
+                                             std::string_view file_name,
+                                             size_t file_line) {
+    std::stringstream ss;
+    ss << err_msg << '(' << func_name << " @ " << file_name << ':' << file_line
+       << ')';
+    throw std::runtime_error(ss.str());
+}
 
-#define UNREACHABLE()                       \
-    do {                                    \
-        std::stringstream ss;               \
-        ss << "Unreachable! ";              \
-        ANNOTATE_LOCATION(ss);              \
-        throw std::runtime_error(ss.str()); \
-    } while (0)
+#define ANNOTATE_LOCATION __FUNCTION__, __FILE__, __LINE__
 
-#define ASSERT(x)                           \
-    if (!(x)) {                             \
-        std::stringstream ss;               \
-        ss << "Assert failed! ";            \
-        ANNOTATE_LOCATION(ss);              \
-        throw std::runtime_error(ss.str()); \
+#define UNREACHABLE() assert_throw("Unreachable! ", ANNOTATE_LOCATION)
+
+#define ASSERT(x)                                           \
+    if (x) {                                                \
+    } else {                                                \
+        assert_throw("Assert failed! ", ANNOTATE_LOCATION); \
     }

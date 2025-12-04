@@ -28,13 +28,19 @@ std::optional<std::string> read_file() {
 void print_error_infos() {
     if (error_infos.size() == 0) return;
     std::cout << "Error count: " << error_infos.size() << std::endl;
-    std::sort(error_infos.begin(), error_infos.end());
+    std::stable_sort(error_infos.begin(), error_infos.end(),
+                     [](const ErrorInfo& a, const ErrorInfo& b) {
+                         if (a.token.line < b.token.line) return true;
+                         return a.token.col < b.token.col;
+                     });
     std::ofstream output{"./error.txt", std::ios_base::out};
     for (auto& error : error_infos) {
 #ifdef NDEBUG
         output << error.line << ' ' << error.type << std::endl;
 #else
-        output << error.line << ':' << error.col << ' ' << error.type
+        output << error.token.line << ':' << error.token.col << ' '
+               << error.token.type << ' ' << error.token.content << ' '
+               << static_cast<char>(error.type) << ' ' << error.msg
                << std::endl;
 #endif
     }
@@ -62,13 +68,13 @@ int main() {
         Lexer lexer{*src};
         auto it = lexer.begin();
         auto map = parse_grammer(it);
-        const auto *const ast = map->get(ASTNode::Type::COMP_UNIT);
+        const auto* const ast = map->get(ASTNode::Type::COMP_UNIT);
 
         if (ast) {
             print_ast(*ast);
 
-            Visitor visitor{};
-            visitor(*ast);
+            Visitor visitor{*ast};
+            visitor.write_ir("ir.ll");
             print_symbol_record(visitor.records);
         }
         print_error_infos();

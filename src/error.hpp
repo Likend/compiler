@@ -1,39 +1,58 @@
 #pragma once
 
 #include <cstddef>
+#include <exception>
+#include <stdexcept>
 #include <vector>
 
+#include "token.hpp"
+
 struct ErrorInfo {
-    char type;
-    size_t line;
-    size_t col;
-
-    inline bool operator==(const ErrorInfo& other) const {
-        return type == other.type && line == other.line && col == other.col;
-    }
-
-    inline bool operator<(const ErrorInfo& other) const {
-        if (line < other.line)
-            return true;
-        else if (line == other.line) {
-            if (col < other.col)
-                return true;
-            else if ((col == other.col) && (type < other.type))
-                return true;
-        }
-        return false;
-    }
+    enum class Type : char {
+        ERROR_TOKEN = 'a',
+        REDEFINED_IDENT = 'b',
+        UNDEFINED_IDENT = 'c',
+        FUNC_ARG_COUNT_MISMATCH = 'd',
+        FUNC_ARG_TYPE_MISMATCH = 'e',
+        RETURN_MISMATCH = 'f',
+        MISSING_RETURN = 'g',
+        CONST_ASSIGNMENT = 'h',
+        MISSING_SEMICOLON = 'i',
+        MISSING_RPAREN = 'j',
+        MISSING_RBRACKET = 'k',
+        PRINTF_FORMAT_MISMATCH = 'l',
+        BREAK_CONTINUE_OUT_OF_LOOP = 'm'
+    };
+    Type type;
+    Token token;
+    std::string msg;
 };
-
-namespace std {
-template <>
-struct hash<ErrorInfo> {
-    size_t operator()(const ErrorInfo& info) const {
-        return std::hash<char>{}(info.type) ^
-               (std::hash<size_t>{}(info.line) < 1) ^
-               (std::hash<size_t>{}(info.col) < 2);
-    }
-};
-}  // namespace std
 
 extern std::vector<ErrorInfo> error_infos;
+
+static inline void reportError(ErrorInfo::Type error_type, const Token& token,
+                               std::string msg) {
+    error_infos.push_back(ErrorInfo{error_type, token, std::move(msg)});
+}
+
+static inline bool has_error() { return error_infos.size() != 0; }
+
+struct CompileError : std::exception {
+    Token ident;
+    ErrorInfo::Type type;
+
+    CompileError(Token ident, ErrorInfo::Type type)
+        : ident(ident), type(type) {}
+
+    virtual ErrorInfo::Type get_type() const { return type; };
+    virtual const Token& get_token() const { return ident; };
+};
+
+struct UndefinedIdentError : CompileError {
+    UndefinedIdentError(Token ident)
+        : CompileError(ident, ErrorInfo::Type::UNDEFINED_IDENT) {}
+};
+
+// struct ConstAssignmentError : CompileError {
+//     UndefinedIdentError(Token ident)
+// };

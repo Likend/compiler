@@ -9,6 +9,17 @@ project(Compiler)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(LLVM REQUIRED CONFIG)
+
+include_directories(${LLVM_INCLUDE_DIRS})
+link_directories(${LLVM_LIBRARY_DIRS})
+
+llvm_map_components_to_libnames(
+    LLVM_LINK_LIBS
+    Core IRReader Support Analysis Target
+)
+
+
 add_library(Compiler_lib STATIC
     src/token.cpp
     src/grammer.cpp
@@ -16,8 +27,10 @@ add_library(Compiler_lib STATIC
     src/symbol_table.cpp
     src/visitor.cpp
     src/error.cpp
+    src/evaluate.cpp
 )
 target_compile_definitions(Compiler_lib PRIVATE DEBUG_TOKEN_TYPE_NAME)
+target_link_libraries(Compiler_lib PRIVATE ${LLVM_LINK_LIBS})
 
 add_executable(Compiler src/main.cpp)
 target_link_libraries(Compiler Compiler_lib)

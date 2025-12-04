@@ -8,6 +8,12 @@
 
 #include "util/assert.hpp"
 
+size_t SymbolType::size() const {
+    size_t item_size = (base_type == SymbolBaseType::INT) ? 4 : 0;
+    size_t count = is_array ? *array_count : 1;
+    return item_size * count;
+}
+
 SymbolTable::SymbolTable() { scope_boundaries.push(set.get_scope_marker()); };
 
 const SymbolTable::Record* SymbolTable::find(
