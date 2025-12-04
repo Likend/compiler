@@ -40,17 +40,6 @@ struct ScopeInfo {
     bool in_for() const { return for_info.has_value(); }
 };
 
-struct EvalOption {
-    bool in_constexpr_context = false;
-    struct CondOption {
-        llvm::BasicBlock* true_bb;
-        llvm::BasicBlock* false_bb;
-    };
-    std::optional<CondOption> cond_option = std::nullopt;
-
-    bool in_boolean_context() const { return cond_option.has_value(); }
-};
-
 struct EvalResult {
     SymbolType type{};
     std::unique_ptr<Exp> exp;
@@ -93,25 +82,23 @@ class Visitor {
     void invoke_stmt(const ASTNode& node, ScopeInfo scope_info);
     void invoke_for_stmt(const ASTNode& node);
 
-    EvalResult invoke_exp(const ASTNode& node,
-                          EvalOption option);  // EXP and CONST_EXP
-    void invoke_cond(const ASTNode& node, EvalOption option);
+    EvalResult invoke_exp(const ASTNode& node);  // EXP and CONST_EXP
+    std::unique_ptr<Cond> invoke_cond(const ASTNode& node);
 
     std::tuple<EvalResult, Token> invoke_lval(const ASTNode& node);
     EvalResult invoke_number(const ASTNode& node);
     const Token& invoke_unary_op(const ASTNode& node);
 
-    EvalResult invoke_primary_exp(const ASTNode& node, EvalOption option);
-    EvalResult invoke_unary_exp(const ASTNode& node, EvalOption option);
-    std::vector<EvalResult> invoke_func_rparams(const ASTNode& node,
-                                                EvalOption option);
+    EvalResult invoke_primary_exp(const ASTNode& node);
+    EvalResult invoke_unary_exp(const ASTNode& node);
+    std::vector<EvalResult> invoke_func_rparams(const ASTNode& node);
 
-    EvalResult invoke_mul_exp(const ASTNode& node, EvalOption option);
-    EvalResult invoke_add_exp(const ASTNode& node, EvalOption option);
-    EvalResult invoke_rel_exp(const ASTNode& node, EvalOption option);
-    EvalResult invoke_eq_exp(const ASTNode& node, EvalOption option);
-    void invoke_land_exp(const ASTNode& node, EvalOption option);
-    void invoke_lor_exp(const ASTNode& node, EvalOption option);
+    EvalResult invoke_mul_exp(const ASTNode& node);
+    EvalResult invoke_add_exp(const ASTNode& node);
+    EvalResult invoke_rel_exp(const ASTNode& node);
+    EvalResult invoke_eq_exp(const ASTNode& node);
+    std::unique_ptr<Cond> invoke_land_exp(const ASTNode& node);
+    std::unique_ptr<Cond> invoke_lor_exp(const ASTNode& node);
 
     void push_scope();
     void pop_scope();

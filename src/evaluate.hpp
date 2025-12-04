@@ -174,7 +174,7 @@ class IntToBoolExp : public Exp {
     }
     llvm::Value* rvalue(llvm::IRBuilder<>& builder) override {
         return builder.CreateICmpNE(int_exp->rvalue(builder),
-                                    builder.getInt32(0));
+                                    builder.getInt32(0), "tobool");
     }
     Type type() override { return T_BOOL; }
 };
