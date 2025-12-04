@@ -860,7 +860,7 @@ void Visitor::invoke_for_stmt(const ASTNode& node) {
 
 // 表达式
 // Exp -> AddExp
-EvalResult Visitor::invoke_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_exp(const ASTNode& node) const {
     if (node.type != ASTNode::Type::EXP &&
         node.type != ASTNode::Type::CONST_EXP) {
         UNEXPECTED_TYPE(node.type);
@@ -873,7 +873,7 @@ EvalResult Visitor::invoke_exp(const ASTNode& node) {
 
 // 条件表达式
 // Cond -> LOrExp
-std::unique_ptr<Cond> Visitor::invoke_cond(const ASTNode& node) {
+std::unique_ptr<Cond> Visitor::invoke_cond(const ASTNode& node) const {
     ASSERT_AST_TYPE(COND, node);
     const ASTNode* lor_exp = node.children.get(ASTNode::Type::LOR_EXP);
     ASSERT(lor_exp);
@@ -882,7 +882,7 @@ std::unique_ptr<Cond> Visitor::invoke_cond(const ASTNode& node) {
 
 // 基本表达式
 // PrimaryExp -> '(' Exp ')' | LVal | Number
-EvalResult Visitor::invoke_primary_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_primary_exp(const ASTNode& node) const {
     if (node.children.get(Token::Type::LPARENT)) {
         const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
         ASSERT(exp);
@@ -903,7 +903,7 @@ EvalResult Visitor::invoke_primary_exp(const ASTNode& node) {
 // Error type: c 未定义的名字
 //               使用了未定义的标识符
 //               报错行号为 Ident 所在 行数。
-std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) {
+std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) const {
     ASSERT_AST_TYPE(L_VAL, node);
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
@@ -962,7 +962,7 @@ static int32_t evaluate_number(std::string_view intcon) {
 }
 
 // 数值 Number -> IntConst
-EvalResult Visitor::invoke_number(const ASTNode& node) {
+EvalResult Visitor::invoke_number(const ASTNode& node) const {
     ASSERT_AST_TYPE(NUMBER, node);
 
     const Token* intcon = node.children.get(Token::Type::INTCON);
@@ -986,7 +986,7 @@ EvalResult Visitor::invoke_number(const ASTNode& node) {
 //             e 函数参数类型不匹配
 //               函数调用语句中，参数类型与函数定义中对应位置的参数类型不匹配。
 //               报错行号为函数调用语句的函数名所在行数。
-EvalResult Visitor::invoke_unary_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_unary_exp(const ASTNode& node) const {
     if (const ASTNode* primary_exp =
             node.children.get(ASTNode::Type::PRIMARY_EXP)) {
         return invoke_primary_exp(*primary_exp);
@@ -1059,7 +1059,7 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node) {
 
 // 单目运算符
 // UnaryOp -> '+' | '−' | '!'
-const Token& Visitor::invoke_unary_op(const ASTNode& node) {
+const Token& Visitor::invoke_unary_op(const ASTNode& node) const {
     ASSERT_AST_TYPE(UNARY_OP, node);
 
     const auto& token = std::get<Token>(*node.children.begin());
@@ -1071,7 +1071,8 @@ const Token& Visitor::invoke_unary_op(const ASTNode& node) {
 
 // 函数实参表
 // FuncRParams -> Exp { ',' Exp }
-std::vector<EvalResult> Visitor::invoke_func_rparams(const ASTNode& node) {
+std::vector<EvalResult> Visitor::invoke_func_rparams(
+    const ASTNode& node) const {
     std::vector<EvalResult> evals;
     for (const ASTNode& exp : node.children.equal_range(ASTNode::Type::EXP)) {
         evals.push_back(invoke_exp(exp));
@@ -1090,7 +1091,7 @@ std::vector<EvalResult> Visitor::invoke_func_rparams(const ASTNode& node) {
 // MulExp -> UnaryExp | MulExp ('*' | '/' | '%') UnaryExp
 // Modified:
 //    MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }
-EvalResult Visitor::invoke_mul_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_mul_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
@@ -1116,7 +1117,7 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node) {
 // AddExp -> MulExp | AddExp ('+' | '−') MulExp
 // Modified:
 //     AddExp -> MulExp { ('+' | '-') MulExp }
-EvalResult Visitor::invoke_add_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_add_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
@@ -1143,7 +1144,7 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node) {
 // RelExp -> AddExp | RelExp ('<' | '>' | '<=' | '>=') AddExp
 // Modified:
 //     RelExp -> AddExp { ('<' | '>' | '<=' | '>=') AddExp }
-EvalResult Visitor::invoke_rel_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
@@ -1170,7 +1171,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node) {
 // EqExp -> RelExp | EqExp ('==' | '!=') RelExp
 // Modified:
 //     EqExp -> RelExp { ('==' | '!=') RelExp }
-EvalResult Visitor::invoke_eq_exp(const ASTNode& node) {
+EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
@@ -1197,7 +1198,7 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node) {
 // LAndExp -> EqExp | LAndExp '&&' EqExp
 // Modified:
 //     LAndExp -> EqExp { '&&' EqExp }
-std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) {
+std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
@@ -1228,7 +1229,7 @@ std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) {
 // LOrExp -> LAndExp | LOrExp '||' LAndExp
 // Modified:
 //     LOrExp -> LAndExp { '||' LAndExp }
-std::unique_ptr<Cond> Visitor::invoke_lor_exp(const ASTNode& node) {
+std::unique_ptr<Cond> Visitor::invoke_lor_exp(const ASTNode& node) const {
     auto it = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;

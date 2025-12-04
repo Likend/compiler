@@ -43,7 +43,6 @@ struct ScopeInfo {
 struct EvalResult {
     SymbolType type{};
     std::unique_ptr<Exp> exp;
-    bool is_valid = true;
 };
 
 class Visitor {
@@ -82,24 +81,26 @@ class Visitor {
     void invoke_stmt(const ASTNode& node, ScopeInfo scope_info);
     void invoke_for_stmt(const ASTNode& node);
 
-    EvalResult invoke_exp(const ASTNode& node);  // EXP and CONST_EXP
-    std::unique_ptr<Cond> invoke_cond(const ASTNode& node);
+    // Expression and condition
+    EvalResult invoke_exp(const ASTNode& node) const;  // EXP and CONST_EXP
+    std::unique_ptr<Cond> invoke_cond(const ASTNode& node) const;
 
-    std::tuple<EvalResult, Token> invoke_lval(const ASTNode& node);
-    EvalResult invoke_number(const ASTNode& node);
-    const Token& invoke_unary_op(const ASTNode& node);
+    std::tuple<EvalResult, Token> invoke_lval(const ASTNode& node) const;
+    EvalResult invoke_number(const ASTNode& node) const;
+    const Token& invoke_unary_op(const ASTNode& node) const;
 
-    EvalResult invoke_primary_exp(const ASTNode& node);
-    EvalResult invoke_unary_exp(const ASTNode& node);
-    std::vector<EvalResult> invoke_func_rparams(const ASTNode& node);
+    EvalResult invoke_primary_exp(const ASTNode& node) const;
+    EvalResult invoke_unary_exp(const ASTNode& node) const;
+    std::vector<EvalResult> invoke_func_rparams(const ASTNode& node) const;
 
-    EvalResult invoke_mul_exp(const ASTNode& node);
-    EvalResult invoke_add_exp(const ASTNode& node);
-    EvalResult invoke_rel_exp(const ASTNode& node);
-    EvalResult invoke_eq_exp(const ASTNode& node);
-    std::unique_ptr<Cond> invoke_land_exp(const ASTNode& node);
-    std::unique_ptr<Cond> invoke_lor_exp(const ASTNode& node);
+    EvalResult invoke_mul_exp(const ASTNode& node) const;
+    EvalResult invoke_add_exp(const ASTNode& node) const;
+    EvalResult invoke_rel_exp(const ASTNode& node) const;
+    EvalResult invoke_eq_exp(const ASTNode& node) const;
+    std::unique_ptr<Cond> invoke_land_exp(const ASTNode& node) const;
+    std::unique_ptr<Cond> invoke_lor_exp(const ASTNode& node) const;
 
+    // Tools
     void push_scope();
     void pop_scope();
 
