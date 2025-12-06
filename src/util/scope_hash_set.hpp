@@ -9,36 +9,36 @@ template <typename Value, typename Hash = std::hash<Value>,
 class ScopeHashSet {
    private:
     struct Node {
-        Value value;
-        Node* hash_next = nullptr;
-        Node** hash_prev = nullptr;
-        Node* scope_next = nullptr;
+        Value  value;
+        Node*  hash_next  = nullptr;
+        Node** hash_prev  = nullptr;
+        Node*  scope_next = nullptr;
     };
 
    public:
     ScopeHashSet(size_t capacity = 256, Hash hash = Hash{}, Pred pred = Pred{})
         : hash(hash), pred(pred) {
         assert(capacity >= 1);
-        head = new Node*;
+        head  = new Node*;
         *head = nullptr;
-        tail = head;
+        tail  = head;
 
         hash_buckets.resize(capacity, nullptr);
     }
 
     ~ScopeHashSet() { clean(); }
 
-    ScopeHashSet(const ScopeHashSet&) = delete;
+    ScopeHashSet(const ScopeHashSet&)            = delete;
     ScopeHashSet& operator=(const ScopeHashSet&) = delete;
 
     ScopeHashSet(ScopeHashSet&& other) {
         hash_buckets = std::move(other.hash_buckets);
-        head = other.head;
-        tail = other.tail;
-        _size = other._size;
+        head         = other.head;
+        tail         = other.tail;
+        _size        = other._size;
 
-        other.head = nullptr;
-        other.tail = nullptr;
+        other.head  = nullptr;
+        other.tail  = nullptr;
         other._size = 0;
 
         hash = std::move(other.hash);
@@ -49,12 +49,12 @@ class ScopeHashSet {
         if (this == &other) return *this;
         clean();
         hash_buckets = std::move(other.hash_buckets);
-        head = other.head;
-        tail = other.tail;
-        _size = other._size;
+        head         = other.head;
+        tail         = other.tail;
+        _size        = other._size;
 
-        other.head = nullptr;
-        other.tail = nullptr;
+        other.head  = nullptr;
+        other.tail  = nullptr;
         other._size = 0;
 
         hash = std::move(other.hash);
@@ -63,7 +63,7 @@ class ScopeHashSet {
     }
 
     size_t size() const noexcept { return _size; }
-    bool empty() const noexcept { return _size == 0; }
+    bool   empty() const noexcept { return _size == 0; }
 
     size_t bucket_count() const noexcept { return hash_buckets.size(); }
 
@@ -74,8 +74,8 @@ class ScopeHashSet {
         Node* new_node = new Node{std::move(value)};
 
         // 将新节点添加到作用域链表末尾
-        *tail = new_node;                // 将当前末尾指针指向新节点
-        tail = &(new_node->scope_next);  // 更新tail指向新节点的next字段地址
+        *tail = new_node;                 // 将当前末尾指针指向新节点
+        tail  = &(new_node->scope_next);  // 更新tail指向新节点的next字段地址
 
         insert_in_bucket(&hash_buckets[bucket_index], new_node);
         _size++;
@@ -98,7 +98,7 @@ class ScopeHashSet {
         std::vector<Node*> new_buckets(new_capacity);
 
         for (Node* current = *head; current != nullptr;
-             current = current->scope_next) {
+             current       = current->scope_next) {
             size_t new_bucket_index = hash(current->value) % new_capacity;
             // current->hash_next = nullptr;
             // current->hash_prev = nullptr;
@@ -129,7 +129,7 @@ class ScopeHashSet {
 
         // 重设链表的结尾
         *scope_start = nullptr;
-        tail = scope_start;
+        tail         = scope_start;
     }
 
     // struct iterator {
@@ -170,7 +170,7 @@ class ScopeHashSet {
 
        public:
         const Value& operator*() const noexcept { return node->value; }
-        iterator& operator++() noexcept {
+        iterator&    operator++() noexcept {
             node = node->scope_next;
             return *this;
         }
@@ -193,15 +193,15 @@ class ScopeHashSet {
     template <typename SearchKey>
     iterator find(const SearchKey& key) const {
         size_t bucket_index = hash(key) % bucket_count();
-        Node* node = search_in_bucket(bucket_index, key);
+        Node*  node         = search_in_bucket(bucket_index, key);
         return {node};
     }
 
     template <typename SearchKey>
     class EqualRange {
        private:
-        Node* node;
-        const Pred& pred;
+        Node*           node;
+        const Pred&     pred;
         const SearchKey key;
 
         EqualRange(Node* node, const Pred& pred, const SearchKey& key)
@@ -211,8 +211,8 @@ class ScopeHashSet {
        public:
         struct iterator {
            private:
-            Node* node;
-            const Pred& pred;
+            Node*            node;
+            const Pred&      pred;
             const SearchKey& key;
             friend class EqualRange;
 
@@ -221,7 +221,7 @@ class ScopeHashSet {
 
            public:
             const Value& operator*() const noexcept { return node->value; }
-            iterator& operator++() {
+            iterator&    operator++() {
                 do {
                     node = node->hash_next;
                 } while (node != nullptr && !pred(node->value, key));
@@ -247,7 +247,7 @@ class ScopeHashSet {
     template <typename SearchKey>
     EqualRange<SearchKey> equal_range(const SearchKey& key) const {
         size_t bucket_index = hash(key) % bucket_count();
-        Node* node = search_in_bucket(bucket_index, key);
+        Node*  node         = search_in_bucket(bucket_index, key);
         return EqualRange<SearchKey>{node, pred, key};
     }
 
@@ -277,13 +277,13 @@ class ScopeHashSet {
     // 不处理 rehash
     // 不处理 _size
     void insert_in_bucket(Node** pointer_to_current_node,
-                          Node* new_node) noexcept {
+                          Node*  new_node) noexcept {
         assert(pointer_to_current_node);
         assert(new_node);
 
         if constexpr (!insert_back) {
             // 将新节点插入哈希桶头部
-            Node* current_node = *pointer_to_current_node;
+            Node* current_node  = *pointer_to_current_node;
             new_node->hash_next = current_node;  // 新节点指向当前头节点
 
             // 如果桶不为空，更新原头节点的prev_link_symbol
@@ -293,7 +293,7 @@ class ScopeHashSet {
 
             // 更新桶头指针指向新节点
             *pointer_to_current_node = new_node;
-            new_node->hash_prev = pointer_to_current_node;
+            new_node->hash_prev      = pointer_to_current_node;
         } else {
             // 将新节点插入哈希桶尾部
             while (*pointer_to_current_node != nullptr) {
@@ -302,8 +302,8 @@ class ScopeHashSet {
             }
 
             *pointer_to_current_node = new_node;
-            new_node->hash_next = nullptr;
-            new_node->hash_prev = pointer_to_current_node;
+            new_node->hash_next      = nullptr;
+            new_node->hash_prev      = pointer_to_current_node;
         }
     }
 
@@ -325,7 +325,7 @@ class ScopeHashSet {
     }
 
     constexpr static double max_load_factor = 0.75;
-    double load_factor() const noexcept {
+    double                  load_factor() const noexcept {
         return static_cast<double>(_size) / hash_buckets.size();
     }
 

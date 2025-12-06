@@ -35,7 +35,8 @@ void print_error_infos() {
     std::ofstream output{"./error.txt", std::ios_base::out};
     for (auto& error : error_infos) {
 #ifdef NDEBUG
-        output << error.line << ' ' << error.type << std::endl;
+        output << error.token.line << ' ' << static_cast<char>(error.type)
+               << std::endl;
 #else
         output << error.token.line << ':' << error.token.col << ' '
                << error.token.type << ' ' << error.token.content << ' '
@@ -65,15 +66,16 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
 int main() {
     if (std::optional<std::string> src = read_file()) {
         Lexer lexer{*src};
-        auto it = lexer.begin();
-        auto map = parse_grammer(it);
+        auto  it  = lexer.begin();
+        auto  map = parse_grammer(it);
+
         const auto* const ast = map->get(ASTNode::Type::COMP_UNIT);
 
         if (ast) {
             print_ast(*ast);
 
-            Visitor visitor{*ast};
-            std::ofstream ir_file{"ir.ll", std::ios_base::out};
+            Visitor       visitor{*ast};
+            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
             if (ir_file) visitor.write_ir(ir_file);
             print_symbol_record(visitor.records);
         }

@@ -252,7 +252,8 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                  i++) {
                 std::vector<ir::Value*> index = {builder->getInt32(0),
                                                  builder->getInt32(i)};
-                ir::Value*              ptr_to_elem =
+
+                ir::Value* ptr_to_elem =
                     builder->CreateGEP(alloc_type, alloc_ptr, index,
                                        "ptr.arr." + std::to_string(i));
                 if (auto const_int = init_evals[i].exp->test_constexpr()) {

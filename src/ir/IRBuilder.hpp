@@ -29,6 +29,7 @@ class IRBuilder {
 
     // Types
     IntegerType* getInt1Ty() { return IntegerType::get(context, 1); }
+    IntegerType* getInt8Ty() { return IntegerType::get(context, 8); }
     IntegerType* getInt32Ty() { return IntegerType::get(context, 32); }
     Type*        getVoidTy() { return Type::getVoidTy(context); }
     PointerType* getPtrTy(unsigned addrSpace = 0) {
@@ -151,10 +152,11 @@ class IRBuilder {
     StoreInst* CreateStore(Value* val, Value* ptr) {
         return StoreInst::Create(val, ptr, bb);
     }
-    GetElementPtrInst* CreateGEP(Type* ty, Value* ptr,
+    GetElementPtrInst* CreateGEP(Type* pointeeTy, Value* ptr,
                                  const std::vector<Value*> idxList,
                                  std::string               name) {
-        return GetElementPtrInst::Create(ty, ptr, idxList, std::move(name), bb);
+        return GetElementPtrInst::Create(pointeeTy, ptr, idxList,
+                                         std::move(name), bb);
     }
 };
 }  // namespace ir

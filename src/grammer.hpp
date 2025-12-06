@@ -99,7 +99,7 @@ struct ASTNode {
 
        public:
         size_t size() const { return set.size(); }
-        bool empty() const { return set.empty(); }
+        bool   empty() const { return set.empty(); }
 
         void insert(Element value) { set.insert(std::move(value)); }
 
@@ -110,7 +110,7 @@ struct ASTNode {
 
         using ScopeMarker = SetType::ScopeMarker;
         ScopeMarker get_scope_marker() const { return set.get_scope_marker(); }
-        void pop_scope(ScopeMarker marker) { set.pop_scope(marker); }
+        void        pop_scope(ScopeMarker marker) { set.pop_scope(marker); }
 
         using iterator = SetType::iterator;
         iterator begin() const { return set.begin(); }

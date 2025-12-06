@@ -10,7 +10,7 @@ using namespace ir;
 
 ConstantInt* ConstantInt::get(IntegerType* ty, int32_t v) {
     LLVMContextImpl* pImpl = ty->getContext().pImpl.get();
-    auto& it = pImpl->IntConstants[std::make_tuple(ty->getBitWidth(), v)];
+    auto& it = pImpl->intConstants[std::make_tuple(ty->getBitWidth(), v)];
     if (!it.get()) {
         it = std::unique_ptr<ConstantInt>(new ConstantInt{ty, v});
     }

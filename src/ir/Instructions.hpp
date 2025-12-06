@@ -7,6 +7,8 @@
 #include "ir/LLVMContext.hpp"
 #include "ir/Type.hpp"
 #include "ir/User.hpp"
+#include "util/assert.hpp"
+
 namespace ir {
 class BasicBlock;
 
@@ -76,6 +78,8 @@ class BinaryOperator : public Instruction {
                 return "srem";
             case Xor:
                 return "xor";
+            default:
+                UNREACHABLE();
         }
     }
 };
@@ -181,10 +185,6 @@ class GetElementPtrInst final : public Instruction {
     Value*       getPointerOperand() { return getOperand(0); }
     const Value* getPointerOperand() const { return getOperand(0); }
 
-    Type* getPointerOperandType() const {
-        return getPointerOperand()->getType();
-    }
-
     op_iterator        idx_begin() { return op_begin() + 1; }
     const_op_interator idx_begin() const { return op_begin() + 1; }
     op_iterator        idx_end() { return op_end(); }
@@ -195,6 +195,10 @@ class GetElementPtrInst final : public Instruction {
     }
 
     std::string_view getOpcodeName() const override { return "getelementptr"; }
+
+    static Type* getIndexedType(Type*                     pointeeType,
+                                const std::vector<Value*> idxList);
+    static Type* getTypeAtIndex(Type* pointeeType, Value* idx);
 };
 
 class CmpInst : public Instruction {

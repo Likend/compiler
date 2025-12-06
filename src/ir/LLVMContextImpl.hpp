@@ -24,21 +24,20 @@ struct hash<std::tuple<U, V>> {
 namespace ir {
 class ConstantInt;
 class Module;
+
 class LLVMContextImpl {
    public:
     Type        voidTy;
     Type        labelTy;
-    IntegerType int1Ty;
-    IntegerType int8Ty;
-    IntegerType int32Ty;
     PointerType pointerTy;
 
-    std::vector<std::unique_ptr<FunctionType>> functionTys;
-    std::vector<std::unique_ptr<ArrayType>>    arrTyps;
+    std::vector<std::unique_ptr<FunctionType>>                 functionTys;
+    std::vector<std::unique_ptr<ArrayType>>                    arrTyps;
+    std::unordered_map<unsigned, std::unique_ptr<IntegerType>> intTys;
 
     std::unordered_map<std::tuple<unsigned, int32_t>,
                        std::unique_ptr<ConstantInt>>
-        IntConstants;
+        intConstants;
 
     std::unordered_set<Module*> ownedModules;
 

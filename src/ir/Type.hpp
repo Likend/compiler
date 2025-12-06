@@ -120,8 +120,7 @@ class PointerType : public Type {
     PointerType& operator=(const PointerType&) = delete;
 
     static PointerType* get(LLVMContext& c,
-                            unsigned     addrSpace  // unuse
-    );
+                            unsigned     addrSpace);  // addrSpace is unused
 };
 
 std::ostream& operator<<(std::ostream& os, const Type* type);

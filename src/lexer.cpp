@@ -187,9 +187,9 @@ struct DelimiterMatcher {
     }
 
     bool enter_condition(char c) {
-        State& state = reinterpret_cast<State&>(this->state);
-        state.opt = first_opt(c);
-        bool ret = state.opt != ERROR;
+        auto& state = reinterpret_cast<State&>(this->state);
+        state.opt   = first_opt(c);
+        bool ret    = state.opt != ERROR;
         if (ret) {
             state.first_char = c;
         }
@@ -197,8 +197,8 @@ struct DelimiterMatcher {
     }
 
     Token::Type feed(char c) {
-        State& state = reinterpret_cast<State&>(this->state);
-        state.opt = second_opt(c, state.opt);
+        auto& state = reinterpret_cast<State&>(this->state);
+        state.opt   = second_opt(c, state.opt);
         switch (state.opt) {
             case END:
                 switch (this->state) {
@@ -230,14 +230,14 @@ struct DelimiterMatcher {
         TO_END,
         ERROR = -1,
 
-        WAIT_EQ = '=',
+        WAIT_EQ  = '=',
         WAIT_AND = '&',
-        WAIT_OR = '|',
+        WAIT_OR  = '|',
     };
     struct alignas(4) State {
         int8_t first_char;
         int8_t second_char;
-        Opt opt;
+        Opt    opt;
     };
 
     static_assert(sizeof(State) == 4);
@@ -295,9 +295,9 @@ struct GeneralMatcher {
 
     template <typename M>
     bool handle_first(char c) {
-        M matcher;
+        M    matcher;
         bool ret = matcher.enter_condition(c);
-        state = std::move(matcher);
+        state    = std::move(matcher);
         return ret;
     }
 };
@@ -321,14 +321,14 @@ Token Lexer::TokenIterator::get_next_token() {
         return c;
     };
 
-    size_t begin_distance = std::distance(src.cbegin(), it);
-    size_t begin_line = line;
-    size_t begin_col = col;
+    size_t      begin_distance = std::distance(src.cbegin(), it);
+    size_t      begin_line     = line;
+    size_t      begin_col      = col;
     Token::Type tok_type;
     if (it != end) {
         if (TokenMatcher matcher; matcher.enter_condition(*it)) {
             do {
-                char c = get_next_char();
+                char c   = get_next_char();
                 tok_type = matcher.feed(c);
             } while (tok_type == Token::Type::NONE);
         } else {
@@ -339,7 +339,7 @@ Token Lexer::TokenIterator::get_next_token() {
         tok_type = Token::Type::NONE;
     }
 
-    size_t end_distance = std::distance(src.cbegin(), it);
+    size_t           end_distance = std::distance(src.cbegin(), it);
     std::string_view content =
         src.substr(begin_distance, end_distance - begin_distance);
     return {tok_type, content, begin_line, begin_col};
