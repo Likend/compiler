@@ -4,8 +4,11 @@ BasedOnStyle:  Google
 IndentWidth: 4
 
 
-#IncludeBlocks: Preserve       # 保持头文件分组结构
-SortIncludes: CaseInsensitive   # 开启排序（但通过分组控制例外）
+SortIncludes: CaseInsensitive      # 开启排序（但通过分组控制例外）
+AlignConsecutiveDeclarations: true # 开启对连续声明的对齐。
+AlignConsecutiveAssignments: true
+AlignTrailingComments: true
+
 
 IncludeCategories:
   # 1. 优先排序标准库头文件（尖括号）
@@ -20,4 +23,3 @@ IncludeCategories:
   - Regex:           '^".*"'
     Priority:        3
 ...
-

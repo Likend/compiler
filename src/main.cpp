@@ -13,7 +13,6 @@
 #include "lexer.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
-#include "util/assert.hpp"
 #include "visitor.hpp"
 
 std::optional<std::string> read_file() {
@@ -74,7 +73,8 @@ int main() {
             print_ast(*ast);
 
             Visitor visitor{*ast};
-            visitor.write_ir("ir.ll");
+            std::ofstream ir_file{"ir.ll", std::ios_base::out};
+            if (ir_file) visitor.write_ir(ir_file);
             print_symbol_record(visitor.records);
         }
         print_error_infos();

@@ -3,21 +3,19 @@
 #include <optional>
 #include <stdexcept>
 
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Value.h>
-
+#include "ir/BasicBlock.hpp"
+#include "ir/IRBuilder.hpp"
+#include "ir/Value.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
 #include "util/assert.hpp"
-
 class Exp {
    public:
     enum Type { T_INT, T_BOOL, T_PTR, T_VOID };
     virtual ~Exp() = default;
 
-    virtual llvm::Value* rvalue(llvm::IRBuilder<>& builder) = 0;
-    virtual llvm::Value* lvalue([[maybe_unused]] llvm::IRBuilder<>& buidler) {
+    virtual ir::Value* rvalue(ir::IRBuilder& builder) = 0;
+    virtual ir::Value* lvalue([[maybe_unused]] ir::IRBuilder& buidler) {
         throw std::runtime_error("Error: Expression cannot be used as Lvalue!");
     }
     virtual std::optional<int32_t> test_constexpr() { return std::nullopt; }
@@ -31,7 +29,7 @@ class IntLiteralExp : public Exp {
    public:
     IntLiteralExp(int32_t value) : value(value) {}
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override {
+    ir::Value* rvalue(ir::IRBuilder& builder) override {
         return builder.getInt32(value);
     }
     std::optional<int32_t> test_constexpr() override { return value; }
@@ -45,8 +43,8 @@ class IntVarExp : public Exp {
    public:
     IntVarExp(const SymbolTable::Record& var_symbol) : var_symbol(var_symbol) {}
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
-    llvm::Value* lvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
+    ir::Value* lvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
     Type type() override { return T_INT; }
 };
@@ -58,7 +56,7 @@ class PtrVarExp : public Exp {
    public:
     PtrVarExp(const SymbolTable::Record& var_symbol) : var_symbol(var_symbol) {}
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
     Type type() override { return T_PTR; }
 };
 
@@ -76,7 +74,7 @@ class FuncCallExp : public Exp {
         }
     }
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
     Type type() override;  // INT | VOID
 };
 
@@ -93,8 +91,8 @@ class ArrayAccessExp : public Exp {
         ASSERT(this->index->type() == T_INT);
     }
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
-    llvm::Value* lvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
+    ir::Value* lvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
     Type type() override { return T_INT; }
 };
@@ -113,7 +111,7 @@ class BinaryOpIntExp : public Exp {
         ASSERT(this->rhs->type() == T_INT);
     }
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
     Type type() override { return T_INT; }
 };
@@ -131,7 +129,7 @@ class BinaryOpBoolExp : public Exp {
         ASSERT(this->lhs->type() == T_INT);
         ASSERT(this->rhs->type() == T_INT);
     }
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
     Type type() override { return T_BOOL; }
 };
 
@@ -146,18 +144,18 @@ class UnaryExp : public Exp {
         ASSERT(this->exp->type() == T_INT);
     }
 
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override;
+    ir::Value* rvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
     Type type() override { return T_INT; }
 };
 
 class PoisonIntVarExp : public Exp {
    public:
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override {
+    ir::Value* rvalue(ir::IRBuilder& builder) override {
         return builder.getInt32(0);
     }
-    llvm::Value* lvalue(llvm::IRBuilder<>& builder) override {
-        return builder.CreateAlloca(builder.getInt32Ty());
+    ir::Value* lvalue(ir::IRBuilder& builder) override {
+        return builder.CreateAlloca(builder.getInt32Ty(), nullptr, "poison");
     }
     std::optional<int32_t> test_constexpr() override { return 0; };
     Type type() override { return T_INT; }
@@ -172,7 +170,7 @@ class IntToBoolExp : public Exp {
         ASSERT(this->int_exp);
         ASSERT(this->int_exp->type() == T_INT);
     }
-    llvm::Value* rvalue(llvm::IRBuilder<>& builder) override {
+    ir::Value* rvalue(ir::IRBuilder& builder) override {
         return builder.CreateICmpNE(int_exp->rvalue(builder),
                                     builder.getInt32(0), "tobool");
     }
@@ -183,8 +181,8 @@ class Cond {
    public:
     virtual ~Cond() = default;
 
-    virtual void gen_code(llvm::BasicBlock* true_bb, llvm::BasicBlock* false_bb,
-                          llvm::IRBuilder<>& builder) = 0;
+    virtual void gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
+                          ir::IRBuilder& builder) = 0;
 };
 
 class SingleCond : public Cond {
@@ -196,8 +194,8 @@ class SingleCond : public Cond {
         ASSERT(this->exp);
         ASSERT(this->exp->type() == Exp::T_BOOL);
     }
-    void gen_code(llvm::BasicBlock* true_bb, llvm::BasicBlock* false_bb,
-                  llvm::IRBuilder<>& builder) override;
+    void gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
+                  ir::IRBuilder& builder) override;
 };
 
 class BinCondBase : public Cond {
@@ -216,13 +214,13 @@ class BinCondBase : public Cond {
 class LAndCond : public BinCondBase {
    public:
     using BinCondBase::BinCondBase;
-    void gen_code(llvm::BasicBlock* true_bb, llvm::BasicBlock* false_bb,
-                  llvm::IRBuilder<>& builder) override;
+    void gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
+                  ir::IRBuilder& builder) override;
 };
 
 class LOrCond : public BinCondBase {
    public:
     using BinCondBase::BinCondBase;
-    void gen_code(llvm::BasicBlock* true_bb, llvm::BasicBlock* false_bb,
-                  llvm::IRBuilder<>& builder) override;
+    void gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
+                  ir::IRBuilder& builder) override;
 };

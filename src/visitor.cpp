@@ -10,21 +10,15 @@
 #include <variant>
 #include <vector>
 
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Constant.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/GlobalValue.h>
-#include <llvm/IR/GlobalVariable.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/IRBuilderFolder.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-#include <llvm/Support/Casting.h>
-
 #include "error.hpp"
 #include "grammer.hpp"
+#include "ir/BasicBlock.hpp"
+#include "ir/Constants.hpp"
+#include "ir/Function.hpp"
+#include "ir/GlobalValue.hpp"
+#include "ir/Instructions.hpp"
+#include "ir/Type.hpp"
+#include "ir/Value.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
 #include "util/assert.hpp"
@@ -62,41 +56,39 @@ using namespace std::string_literals;
 
 Visitor::Visitor(const ASTNode& node) {
     // declare i32 @getint()          ; 读取一个整数
-    auto* getint_type =
-        llvm::FunctionType::get(builder->getInt32Ty(), {}, false);
-    auto* getint_value = llvm::Function::Create(
-        getint_type, llvm::Function::ExternalLinkage, "getint", *module);
+    auto* getint_type = ir::FunctionType::get(builder->getInt32Ty(), {}, false);
+    auto* getint_value = ir::Function::Create(
+        getint_type, ir::Function::ExternalLinkage, "getint", *module);
     SymbolAttr attr;
     attr.type.is_function = true;
-    attr.addr_value = getint_value;
+    attr.addr_value       = getint_value;
     symbol_table.try_add_symbol("getint", attr);
 
     // declare void @putint(i32)      ; 输出一个整数
-    auto* putint_type = llvm::FunctionType::get(builder->getVoidTy(),
-                                                {builder->getInt32Ty()}, false);
-    putint_func = llvm::Function::Create(
-        putint_type, llvm::Function::ExternalLinkage, "putint", *module);
+    auto* putint_type = ir::FunctionType::get(builder->getVoidTy(),
+                                              {builder->getInt32Ty()}, false);
+    putint_func       = ir::Function::Create(
+        putint_type, ir::Function::ExternalLinkage, "putint", *module);
 
     // declare void @putch(i32)       ; 输出一个字符
-    auto* putch_type = llvm::FunctionType::get(builder->getVoidTy(),
-                                               {builder->getInt32Ty()}, false);
-    putch_func = llvm::Function::Create(
-        putch_type, llvm::Function::ExternalLinkage, "putch", *module);
+    auto* putch_type = ir::FunctionType::get(builder->getVoidTy(),
+                                             {builder->getInt32Ty()}, false);
+    putch_func = ir::Function::Create(putch_type, ir::Function::ExternalLinkage,
+                                      "putch", *module);
 
     // declare void @putstr(i8*)       ; 输出字符串
-    auto* putstr_type = llvm::FunctionType::get(builder->getVoidTy(),
-                                                {builder->getPtrTy()}, false);
-    putstr_func = llvm::Function::Create(
-        putstr_type, llvm::Function::ExternalLinkage, "putstr", *module);
+    auto* putstr_type = ir::FunctionType::get(builder->getVoidTy(),
+                                              {builder->getPtrTy()}, false);
+    putstr_func       = ir::Function::Create(
+        putstr_type, ir::Function::ExternalLinkage, "putstr", *module);
 
     // declare init global function
     auto* init_global_func_ty =
-        llvm::FunctionType::get(builder->getVoidTy(), {}, false);
-    init_global_func = llvm::Function::Create(
-        init_global_func_ty, llvm::GlobalValue::InternalLinkage, ".init",
-        *module);
-    init_global_bb =
-        llvm::BasicBlock::Create(*context, "init", init_global_func);
+        ir::FunctionType::get(builder->getVoidTy(), {}, false);
+    init_global_func = ir::Function::Create(init_global_func_ty,
+                                            ir::GlobalValue::InternalLinkage,
+                                            ".init", *module);
+    init_global_bb = ir::BasicBlock::Create(*context, "init", init_global_func);
 
     invoke_comp_unit(node);
 
@@ -136,7 +128,7 @@ void Visitor::invoke_var_decl(const ASTNode& node) {
         UNEXPECTED_TYPE(node.type);
     }
 
-    bool const_flag = (node.children.get(Token::Type::CONSTTK) != nullptr);
+    bool const_flag  = (node.children.get(Token::Type::CONSTTK) != nullptr);
     bool static_flag = (node.children.get(Token::Type::STATICTK) != nullptr);
 
     for (const auto& def : node.children.equal_range(
@@ -163,31 +155,31 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
-    bool is_array = false;
+    bool               is_array = false;
     std::optional<int> array_count;
     if (node.children.get(Token::Type::LBRACK)) {  // Ident [ ConstExp ]
-        is_array = true;
+        is_array              = true;
         const auto* const_exp = node.children.get(ASTNode::Type::CONST_EXP);
         ASSERT(const_exp);
         auto exp_eval = invoke_exp(*const_exp);
-        auto value = exp_eval.exp->test_constexpr();
+        auto value    = exp_eval.exp->test_constexpr();
         ASSERT(value.has_value());
         array_count = *value;
     }
 
     // alloc address
-    llvm::Type* alloc_type;
+    ir::Type* alloc_type;
     if (is_array) {
-        alloc_type = llvm::ArrayType::get(builder->getInt32Ty(), *array_count);
+        alloc_type = ir::ArrayType::get(builder->getInt32Ty(), *array_count);
     } else {
         alloc_type = builder->getInt32Ty();
     }
 
-    llvm::Value* alloc_ptr;
+    ir::Value* alloc_ptr;
     if (is_global_scope) {
-        alloc_ptr = new llvm::GlobalVariable(*module, alloc_type, const_flag,
-                                             llvm::GlobalValue::ExternalLinkage,
-                                             nullptr, ident->content);
+        alloc_ptr = ir::GlobalVariable::Create(
+            *module, alloc_type, const_flag, ir::GlobalValue::ExternalLinkage,
+            nullptr, std::string(ident->content));
     } else {
         alloc_ptr = builder->CreateAlloca(alloc_type, nullptr,
                                           "alloc."s.append(ident->content));
@@ -205,26 +197,26 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     std::vector<int32_t> const_values;
     if (is_global_scope) {
-        auto* global_ptr = llvm::dyn_cast<llvm::GlobalVariable>(alloc_ptr);
-        auto* const_zero = llvm::ConstantInt::get(builder->getInt32Ty(), 0);
+        auto* global_ptr = dynamic_cast<ir::GlobalVariable*>(alloc_ptr);
+        auto* const_zero = ir::ConstantInt::get(builder->getInt32Ty(), 0);
 
-        llvm::BasicBlock* current_bb = builder->GetInsertBlock();
+        ir::BasicBlock* current_bb = builder->GetInsertBlock();
         builder->SetInsertPoint(init_global_bb);
 
         if (is_array) {
-            std::vector<llvm::Constant*> array_const_elem(*array_count,
-                                                          const_zero);
+            std::vector<ir::Constant*> array_const_elem(*array_count,
+                                                        const_zero);
 
             for (size_t i = 0; i < std::min(init_evals.size(),
                                             static_cast<size_t>(*array_count));
                  i++) {
                 if (auto const_int = init_evals[i].exp->test_constexpr()) {
-                    array_const_elem[i] = llvm::ConstantInt::get(
-                        builder->getInt32Ty(), *const_int);
+                    array_const_elem[i] =
+                        ir::ConstantInt::get(builder->getInt32Ty(), *const_int);
                     if (const_flag) const_values.push_back(*const_int);
                 } else {
                     ASSERT(!const_flag);
-                    llvm::Value* ptr_to_elem = builder->CreateGEP(
+                    ir::Value* ptr_to_elem = builder->CreateGEP(
                         alloc_type, alloc_ptr,
                         {builder->getInt32(0), builder->getInt32(i)},
                         "ptr.arr." + std::to_string(i));
@@ -232,13 +224,13 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                                          ptr_to_elem);
                 }
             }
-            global_ptr->setInitializer(llvm::ConstantArray::get(
-                llvm::dyn_cast<llvm::ArrayType>(alloc_type), array_const_elem));
+            global_ptr->setInitializer(ir::ConstantArray::get(
+                static_cast<ir::ArrayType*>(alloc_type), array_const_elem));
         } else {
             if (!init_evals.empty()) {
                 ASSERT(init_evals.size() == 1);
                 if (auto const_int = init_evals[0].exp->test_constexpr()) {
-                    global_ptr->setInitializer(llvm::ConstantInt::get(
+                    global_ptr->setInitializer(ir::ConstantInt::get(
                         builder->getInt32Ty(), *const_int));
                     if (const_flag) const_values.push_back(*const_int);
                 } else {
@@ -258,9 +250,9 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
             for (size_t i = 0; i < std::min(init_evals.size(),
                                             static_cast<size_t>(*array_count));
                  i++) {
-                llvm::Value* index[]{builder->getInt32(0),
-                                     builder->getInt32(i)};
-                llvm::Value* ptr_to_elem =
+                std::vector<ir::Value*> index = {builder->getInt32(0),
+                                                 builder->getInt32(i)};
+                ir::Value*              ptr_to_elem =
                     builder->CreateGEP(alloc_type, alloc_ptr, index,
                                        "ptr.arr." + std::to_string(i));
                 if (auto const_int = init_evals[i].exp->test_constexpr()) {
@@ -291,14 +283,14 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     // Add to symbol table
     SymbolType type;
-    type.base_type = SymbolBaseType::INT;
-    type.const_flag = const_flag;
+    type.base_type   = SymbolBaseType::INT;
+    type.const_flag  = const_flag;
     type.static_flag = static_flag;
-    type.is_array = is_array;
+    type.is_array    = is_array;
     type.array_count = array_count;
     SymbolAttr attr;
-    attr.type = type;
-    attr.addr_value = alloc_ptr;
+    attr.type         = type;
+    attr.addr_value   = alloc_ptr;
     attr.const_values = std::move(const_values);
     add_symbol(*ident, attr);
 }
@@ -346,20 +338,20 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     // Return type used in
     // 1. ScopeInfo
     // 2. llvm function def
-    llvm::Type* llvm_return_type;
+    ir::Type* llvm_return_type;
     ScopeInfo scope_info;
     if (is_main_func) {
         scope_info.return_type = SymbolBaseType::INT;
-        llvm_return_type = builder->getInt32Ty();
+        llvm_return_type       = builder->getInt32Ty();
     } else {
         const ASTNode* func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
         ASSERT(func_type);
         if (func_type->children.get(Token::Type::INTTK)) {
             scope_info.return_type = SymbolBaseType::INT;
-            llvm_return_type = builder->getInt32Ty();
+            llvm_return_type       = builder->getInt32Ty();
         } else if (func_type->children.get(Token::Type::VOIDTK)) {
             scope_info.return_type = SymbolBaseType::VOID;
-            llvm_return_type = builder->getVoidTy();
+            llvm_return_type       = builder->getVoidTy();
         } else {
             UNREACHABLE();
         }
@@ -368,8 +360,8 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     // 1. function name & function_ident
     // 2. function params
     std::vector<std::tuple<SymbolType, Token>> params;
-    std::string_view function_name;
-    const Token* function_ident;
+    std::string_view                           function_name;
+    const Token*                               function_ident;
     if (is_main_func) {
         function_name = "main";
     } else {
@@ -389,10 +381,10 @@ void Visitor::invoke_func_def(const ASTNode& node) {
                    std::back_inserter(params_types),
                    [](auto tuple) { return std::get<0>(tuple); });
 
-    std::vector<llvm::Type*> llvm_params_types;
+    std::vector<ir::Type*> llvm_params_types;
     std::transform(params_types.begin(), params_types.end(),
                    std::back_inserter(llvm_params_types),
-                   [this](SymbolType symbol_type) -> llvm::Type* {
+                   [this](SymbolType symbol_type) -> ir::Type* {
                        if (symbol_type.is_array)
                            return builder->getPtrTy();
                        else
@@ -400,32 +392,32 @@ void Visitor::invoke_func_def(const ASTNode& node) {
                    });
 
     auto* llvm_function_type =
-        llvm::FunctionType::get(llvm_return_type, llvm_params_types, false);
-    auto* llvm_function_value = llvm::Function::Create(
-        llvm_function_type, llvm::Function::ExternalLinkage, function_name,
-        *module);
+        ir::FunctionType::get(llvm_return_type, llvm_params_types, false);
+    auto* llvm_function_value =
+        ir::Function::Create(llvm_function_type, ir::Function::ExternalLinkage,
+                             std::string(function_name), *module);
 
     // add function to symbol table
     if (!is_main_func) {
         SymbolAttr attr;
-        attr.type.base_type = scope_info.return_type;
+        attr.type.base_type       = scope_info.return_type;
         attr.type.function_params = std::move(params_types);
-        attr.type.is_function = true;
-        attr.addr_value = llvm_function_value;
+        attr.type.is_function     = true;
+        attr.addr_value           = llvm_function_value;
         add_symbol(*function_ident, attr);
     }
 
     push_scope();
     auto* entry_bb =
-        llvm::BasicBlock::Create(*context, "entry", llvm_function_value);
+        ir::BasicBlock::Create(*context, "entry", llvm_function_value);
     builder->SetInsertPoint(entry_bb);
 
     // add params to symbol table
     size_t i = 0;
     for (auto& arg : llvm_function_value->args()) {
         const auto& [type, ident] = params[i];
-        arg.setName(ident.content);
-        llvm::Value* arg_ptr;
+        arg.setName(std::string(ident.content));
+        ir::Value* arg_ptr;
         if (!arg.getType()->isPointerTy()) {
             arg_ptr = builder->CreateAlloca(arg.getType(), nullptr,
                                             "alloc."s.append(ident.content));
@@ -435,14 +427,15 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         }
 
         SymbolAttr attr;
-        attr.type = type;
+        attr.type       = type;
         attr.addr_value = arg_ptr;
         add_symbol(ident, attr);
         i++;
     }
 
     if (is_main_func) {
-        builder->CreateCall(init_global_func);
+        builder->CreateCall(init_global_func->getFunctionType(),
+                            init_global_func, {}, "");
     }
 
     const ASTNode* block = node.children.get(ASTNode::Type::BLOCK);
@@ -478,7 +471,7 @@ std::tuple<SymbolType, Token> Visitor::invoke_func_param(const ASTNode& node) {
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
-    bool is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
+    bool       is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
     SymbolType type;
     type.is_array = is_array;
     return std::make_tuple(type, *ident);
@@ -524,14 +517,14 @@ void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
     }
 }
 
-template <typename F_deli, typename F_substr>
+template <typename Func_deli, typename Func_substr>
 static void split_string_skip_empty(std::string_view str,
                                     std::string_view delimiter,
-                                    F_deli delimiter_handler,
-                                    F_substr substr_handler) {
+                                    Func_deli        delimiter_handler,
+                                    Func_substr      substr_handler) {
     size_t start = 0;
     for (size_t end = str.find(delimiter); end != std::string_view::npos;
-         end = str.find(delimiter, start)) {
+         end        = str.find(delimiter, start)) {
         if (end > start) {  // 只有当子串非空时才添加
             substr_handler(str.substr(start, end - start));
         }
@@ -580,19 +573,19 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     auto inner_invoke_if_stmt = [&]() {
         const ASTNode* cond_node = node.children.get(ASTNode::Type::COND);
         ASSERT(cond_node);
-        auto cond = invoke_cond(*cond_node);
+        auto cond     = invoke_cond(*cond_node);
         bool has_else = node.children.get(Token::Type::ELSETK) != nullptr;
 
-        llvm::Function* this_function = builder->GetInsertBlock()->getParent();
+        ir::Function* this_function = builder->GetInsertBlock()->getParent();
         ASSERT(this_function);
-        llvm::BasicBlock* then_bb =
-            llvm::BasicBlock::Create(*context, "if.then", this_function);
-        llvm::BasicBlock* else_bb = nullptr;
-        llvm::BasicBlock* merge_bb =
-            llvm::BasicBlock::Create(*context, "if.merge", this_function);
+        ir::BasicBlock* then_bb =
+            ir::BasicBlock::Create(*context, "if.then", this_function);
+        ir::BasicBlock* else_bb = nullptr;
+        ir::BasicBlock* merge_bb =
+            ir::BasicBlock::Create(*context, "if.merge", this_function);
         if (has_else) {
             else_bb =
-                llvm::BasicBlock::Create(*context, "if.else", this_function);
+                ir::BasicBlock::Create(*context, "if.else", this_function);
             cond->gen_code(then_bb, else_bb, *builder);
         } else {
             cond->gen_code(then_bb, merge_bb, *builder);
@@ -618,7 +611,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
 
     // 'for' '(' [ForStmt] ';' [Cond] ';' [ForStmt] ')' Stmt
     auto inner_invoke_for_stmt = [&]() {
-        auto it = node.children.begin();
+        auto it      = node.children.begin();
         auto for_tok = std::get<Token>(*it);
         ASSERT_TOKEN_TYPE(FORTK, for_tok);
         ++it;
@@ -656,16 +649,16 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const ASTNode* stmt = node.children.get(ASTNode::Type::STMT);
         ASSERT(stmt);
 
-        llvm::Function* this_function = builder->GetInsertBlock()->getParent();
+        ir::Function* this_function = builder->GetInsertBlock()->getParent();
         ASSERT(this_function);
-        llvm::BasicBlock* loop_bb =
-            llvm::BasicBlock::Create(*context, "loop", this_function);
-        llvm::BasicBlock* cond_bb =
-            llvm::BasicBlock::Create(*context, "loop.cond", this_function);
-        llvm::BasicBlock* update_bb =
-            llvm::BasicBlock::Create(*context, "loop.update", this_function);
-        llvm::BasicBlock* after_bb =
-            llvm::BasicBlock::Create(*context, "loop.after", this_function);
+        ir::BasicBlock* loop_bb =
+            ir::BasicBlock::Create(*context, "loop", this_function);
+        ir::BasicBlock* cond_bb =
+            ir::BasicBlock::Create(*context, "loop.cond", this_function);
+        ir::BasicBlock* update_bb =
+            ir::BasicBlock::Create(*context, "loop.update", this_function);
+        ir::BasicBlock* after_bb =
+            ir::BasicBlock::Create(*context, "loop.after", this_function);
 
         if (for_stmt1) invoke_for_stmt(*for_stmt1);
         builder->CreateBr(cond_bb);
@@ -745,7 +738,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         }
 
         std::string_view str_ref = string_const->content;
-        str_ref = str_ref.substr(
+        str_ref                  = str_ref.substr(
             1, str_ref.length() - 2);  // remove first and last '""
 
         // replace '\n'
@@ -760,14 +753,17 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
             [this, &specifier_count, &args]() {
                 if (args.size() > specifier_count) {
                     EvalResult& eval = args[specifier_count];
-                    builder->CreateCall(putint_func,
-                                        {eval.exp->rvalue(*builder)});
+                    builder->CreateCall(putint_func->getFunctionType(),
+                                        putint_func,
+                                        {eval.exp->rvalue(*builder)}, "");
                 }
                 specifier_count++;
             },
             [this](std::string_view substr) {
-                auto* str_value = builder->CreateGlobalString(substr, ".str");
-                builder->CreateCall(putstr_func, {str_value});
+                auto* str_value =
+                    builder->CreateGlobalString(std::string(substr), ".str");
+                builder->CreateCall(putstr_func->getFunctionType(), putstr_func,
+                                    {str_value}, "");
             });
         // Error 'l'
         if (specifier_count != args.size()) {
@@ -834,15 +830,15 @@ void Visitor::invoke_for_stmt(const ASTNode& node) {
     ASSERT_AST_TYPE(FOR_STMT, node);
 
     auto lval_rg = node.children.equal_range(ASTNode::Type::L_VAL);
-    auto exp_rg = node.children.equal_range(ASTNode::Type::EXP);
+    auto exp_rg  = node.children.equal_range(ASTNode::Type::EXP);
 
     auto lval_it = lval_rg.begin();
-    auto exp_it = exp_rg.begin();
+    auto exp_it  = exp_rg.begin();
     for (; lval_it != lval_rg.end(); ++lval_it, ++exp_it) {
         ASSERT(exp_it != exp_rg.end());
 
         const ASTNode& lval = *lval_it;
-        const ASTNode& exp = *exp_it;
+        const ASTNode& exp  = *exp_it;
 
         auto [lval_eval, lval_token] = invoke_lval(lval);
 
@@ -915,7 +911,7 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) const {
                     "Use of undefined ident");
     }
 
-    bool has_index;
+    bool                 has_index;
     std::unique_ptr<Exp> ret_exp;
     if (node.children.get(Token::Type::LBRACK)) {
         const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
@@ -949,7 +945,7 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) const {
     }
     EvalResult result;
     result.type = type;
-    result.exp = std::move(ret_exp);
+    result.exp  = std::move(ret_exp);
     return std::make_tuple(std::move(result), *ident);
 }
 
@@ -971,7 +967,7 @@ EvalResult Visitor::invoke_number(const ASTNode& node) const {
 
     EvalResult eval_result;
     eval_result.type.const_flag = true;
-    eval_result.exp = std::make_unique<IntLiteralExp>(value);
+    eval_result.exp             = std::make_unique<IntLiteralExp>(value);
     return eval_result;
 }
 
@@ -1034,7 +1030,7 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node) const {
             // 处理返回值
             // ASSERT(record->attr.base_type != SymbolBaseType::VOID);
             result.type.base_type = record->attr.type.base_type;
-            result.type.is_array = record->attr.type.is_array;
+            result.type.is_array  = record->attr.type.is_array;
             return result;
         } else {
             reportError(ErrorInfo::Type::UNDEFINED_IDENT, *ident,
@@ -1045,11 +1041,11 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node) const {
         }
     } else if (const ASTNode* unary_op =
                    node.children.get(ASTNode::Type::UNARY_OP)) {
-        const Token& op_token = invoke_unary_op(*unary_op);
+        const Token&   op_token  = invoke_unary_op(*unary_op);
         const ASTNode* unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
         ASSERT(unary_exp);
         auto unary_exp_eval = invoke_unary_exp(*unary_exp);
-        unary_exp_eval.exp = std::make_unique<UnaryExp>(
+        unary_exp_eval.exp  = std::make_unique<UnaryExp>(
             op_token.type, std::move(unary_exp_eval.exp));
         return unary_exp_eval;
     } else {
@@ -1092,7 +1088,7 @@ std::vector<EvalResult> Visitor::invoke_func_rparams(
 // Modified:
 //    MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }
 EvalResult Visitor::invoke_mul_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1118,7 +1114,7 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node) const {
 // Modified:
 //     AddExp -> MulExp { ('+' | '-') MulExp }
 EvalResult Visitor::invoke_add_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1145,7 +1141,7 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node) const {
 // Modified:
 //     RelExp -> AddExp { ('<' | '>' | '<=' | '>=') AddExp }
 EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1172,7 +1168,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
 // Modified:
 //     EqExp -> RelExp { ('==' | '!=') RelExp }
 EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1199,7 +1195,7 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
 // Modified:
 //     LAndExp -> EqExp { '&&' EqExp }
 std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1230,7 +1226,7 @@ std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
 // Modified:
 //     LOrExp -> LAndExp { '||' LAndExp }
 std::unique_ptr<Cond> Visitor::invoke_lor_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 

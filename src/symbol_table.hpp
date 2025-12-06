@@ -10,9 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-
+#include "ir/Value.hpp"
 #include "util/scope_hash_set.hpp"
 
 // enum class SymbolType { INT, CONST_INT, STATIC_INT, INT_FUNC, INT_ARRAY };
@@ -35,7 +33,7 @@ struct SymbolType {
 struct SymbolAttr {
     SymbolType type;
 
-    llvm::Value* addr_value;
+    ir::Value* addr_value;
     std::vector<int32_t> const_values;
 
     bool is_const() const { return !const_values.empty(); }
