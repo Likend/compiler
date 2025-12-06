@@ -78,23 +78,8 @@ ir::Value* ArrayAccessExp::lvalue(ir::IRBuilder& builder) {
     ir::Value* index_val = index->rvalue(builder);
     ir::Value* addr_val  = record.attr.addr_value;
 
-    if (auto* alloca_inst = dynamic_cast<ir::AllocaInst*>(addr_val)) {
-        ir::Type* source_element_type = alloca_inst->getAllocatedType();
-        return builder.CreateGEP(source_element_type, addr_val,
-                                 {builder.getInt32(0), index_val},
-                                 "gep." + record.name);
-    } else if (auto* global_var = dynamic_cast<ir::GlobalVariable*>(addr_val)) {
-        ir::Type* source_element_type = global_var->getValueType();
-        return builder.CreateGEP(source_element_type, addr_val,
-                                 {builder.getInt32(0), index_val},
-                                 "gep." + record.name);
-    } else if ([[maybe_unused]] auto* arg_val =
-                   dynamic_cast<ir::Argument*>(addr_val)) {
-        return builder.CreateGEP(builder.getInt32Ty(), addr_val, {index_val},
-                                 "gep." + record.name);
-    } else {
-        UNREACHABLE();
-    }
+    return builder.CreateGEP(builder.getInt32Ty(), addr_val, {index_val},
+                             "gep." + record.name);
 }
 
 std::optional<int32_t> ArrayAccessExp::test_constexpr() {
