@@ -113,15 +113,15 @@ static_assert(sizeof(Type) == sizeof(ArrayType));
 
 class PointerType : public Type {
     friend class LLVMContextImpl;
-    explicit PointerType(LLVMContext& c, unsigned addrSpace);
+    explicit PointerType(Type* pointTy, unsigned addrSpace);
 
    public:
     PointerType(const PointerType&)            = delete;
     PointerType& operator=(const PointerType&) = delete;
 
-    static PointerType* get(LLVMContext& c,
-                            unsigned     addrSpace  // unuse
-    );
+    static PointerType* get(Type* pointeeTy, unsigned addrSpace);
+
+    Type* getPointeeType() const { return containedTys[0]; }
 };
 
 std::ostream& operator<<(std::ostream& os, const Type* type);

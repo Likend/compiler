@@ -2,10 +2,9 @@
 
 #include <memory>
 
-#include <llvm/IR/Function.h>
-
 #include "ir/BasicBlock.hpp"
 #include "ir/Type.hpp"
+
 using namespace ir;
 
 Instruction::Instruction(Type* ty, size_t numOperands, BasicBlock* parent)
@@ -14,17 +13,58 @@ Instruction::Instruction(Type* ty, size_t numOperands, BasicBlock* parent)
     parent->instList.emplace_back(std::unique_ptr<Instruction>(this));
 }
 
-GetElementPtrInst::GetElementPtrInst(Type* pointeeTy, Value* ptr,
+static Type* getGEPResultElementType(Value*                    ptr,
+                                     const std::vector<Value*> idxList) {
+    ASSERT(ptr->getType()->isPointerTy());
+    auto* ptrTy = static_cast<PointerType*>(ptr->getType());
+    Type* resultElementType =
+        GetElementPtrInst::getIndexedType(ptrTy->getPointeeType(), idxList);
+    ASSERT(resultElementType);
+    return resultElementType;
+}
+
+GetElementPtrInst::GetElementPtrInst(Value*                     ptr,
                                      const std::vector<Value*>& idxList,
                                      std::string name, BasicBlock* parent)
-    : Instruction(ptr->getType(), idxList.size() + 1, parent),
-      sourceElementType(pointeeTy),
-      resultElementType(ptr->getType()) {
+    : Instruction(getGEPReturnType(ptr, idxList), idxList.size() + 1, parent),
+      resultElementType(getGEPResultElementType(ptr, idxList)) {
+    ASSERT(ptr->getType()->isPointerTy());
     setOperand(0, ptr);
     for (size_t i = 0; i < idxList.size(); i++) {
         setOperand(i + 1, idxList[i]);
     }
     setName(std::move(name));
+}
+
+Type* GetElementPtrInst::getSourceElementType() const {
+    return static_cast<PointerType*>(getPointerOperand()->getType())
+        ->getPointeeType();
+}
+
+Type* GetElementPtrInst::getTypeAtIndex(Type* type, Value* idx) {
+    if (!idx->getType()->isIntegerTy()) return nullptr;
+    if (type->isArrayTy()) {
+        auto* arrTy = static_cast<ArrayType*>(type);
+        return arrTy->getElementType();
+    }
+    return nullptr;
+}
+
+Type* GetElementPtrInst::getIndexedType(Type*                     pointeeType,
+                                        const std::vector<Value*> idxList) {
+    if (idxList.empty()) return pointeeType;
+    for (auto it = idxList.begin() + 1; it != idxList.end(); ++it) {
+        Value* v    = *it;
+        pointeeType = getTypeAtIndex(pointeeType, v);
+        if (pointeeType == nullptr) return pointeeType;
+    }
+    return pointeeType;
+}
+
+Type* GetElementPtrInst::getGEPReturnType(Value*                    ptr,
+                                          const std::vector<Value*> idxList) {
+    Type* resultElementType = getGEPResultElementType(ptr, idxList);
+    return PointerType::get(resultElementType, 0);
 }
 
 CallInst::CallInst(FunctionType* ty, Value* func,

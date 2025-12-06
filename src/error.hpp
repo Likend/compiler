@@ -9,22 +9,22 @@
 
 struct ErrorInfo {
     enum class Type : char {
-        ERROR_TOKEN = 'a',
-        REDEFINED_IDENT = 'b',
-        UNDEFINED_IDENT = 'c',
-        FUNC_ARG_COUNT_MISMATCH = 'd',
-        FUNC_ARG_TYPE_MISMATCH = 'e',
-        RETURN_MISMATCH = 'f',
-        MISSING_RETURN = 'g',
-        CONST_ASSIGNMENT = 'h',
-        MISSING_SEMICOLON = 'i',
-        MISSING_RPAREN = 'j',
-        MISSING_RBRACKET = 'k',
-        PRINTF_FORMAT_MISMATCH = 'l',
+        ERROR_TOKEN                = 'a',
+        REDEFINED_IDENT            = 'b',
+        UNDEFINED_IDENT            = 'c',
+        FUNC_ARG_COUNT_MISMATCH    = 'd',
+        FUNC_ARG_TYPE_MISMATCH     = 'e',
+        RETURN_MISMATCH            = 'f',
+        MISSING_RETURN             = 'g',
+        CONST_ASSIGNMENT           = 'h',
+        MISSING_SEMICOLON          = 'i',
+        MISSING_RPAREN             = 'j',
+        MISSING_RBRACKET           = 'k',
+        PRINTF_FORMAT_MISMATCH     = 'l',
         BREAK_CONTINUE_OUT_OF_LOOP = 'm'
     };
-    Type type;
-    Token token;
+    Type        type;
+    Token       token;
     std::string msg;
 };
 
@@ -38,14 +38,14 @@ static inline void reportError(ErrorInfo::Type error_type, const Token& token,
 static inline bool has_error() { return error_infos.size() != 0; }
 
 struct CompileError : std::exception {
-    Token ident;
+    Token           ident;
     ErrorInfo::Type type;
 
     CompileError(Token ident, ErrorInfo::Type type)
         : ident(ident), type(type) {}
 
     virtual ErrorInfo::Type get_type() const { return type; };
-    virtual const Token& get_token() const { return ident; };
+    virtual const Token&    get_token() const { return ident; };
 };
 
 struct UndefinedIdentError : CompileError {

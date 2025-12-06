@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iterator>
 #include <memory>
+#include <utility>
 
 #include "ir/LLVMContext.hpp"
 #include "ir/LLVMContextImpl.hpp"
@@ -20,15 +21,13 @@ IntegerType::IntegerType(LLVMContext& c, unsigned numBits)
 
 IntegerType* IntegerType::get(LLVMContext& c, unsigned NumBits) {
     LLVMContextImpl* pImpl = c.pImpl.get();
-    switch (NumBits) {
-        case 1:
-            return &pImpl->int1Ty;
-        case 8:
-            return &pImpl->int8Ty;
-        case 32:
-            return &pImpl->int32Ty;
-        default:
-            UNREACHABLE();
+    if (auto it = pImpl->intTys.find(NumBits); it != pImpl->intTys.end()) {
+        return it->second.get();
+    } else {
+        auto emplateResult = pImpl->intTys.try_emplace(
+            NumBits, std::unique_ptr<IntegerType>(new IntegerType{c, NumBits}));
+        ASSERT(emplateResult.second);
+        return emplateResult.first->second.get();
     }
 }
 
@@ -90,12 +89,23 @@ ArrayType* ArrayType::get(Type* elemType, size_t elemNum) {
             .get();
 }
 
-PointerType::PointerType(LLVMContext& c, unsigned addrSpace)
-    : Type(c, PointerTyID) {
+PointerType::PointerType(Type* pointTy, unsigned addrSpace)
+    : Type(pointTy->getContext(), PointerTyID) {
+    containedTys.push_back(pointTy);
     subclassData = addrSpace;
 }
 
-PointerType* PointerType::get(LLVMContext&                  c,
-                              [[maybe_unused]] unsigned int addrSpace) {
-    return &c.pImpl->pointerTy;
+PointerType* PointerType::get(Type* pointeeTy, unsigned int addrSpace) {
+    LLVMContext&     context = pointeeTy->getContext();
+    LLVMContextImpl* pImpl   = context.pImpl.get();
+    if (auto it = pImpl->pointTys.find(pointeeTy);
+        it != pImpl->pointTys.end()) {
+        return it->second.get();
+    } else {
+        auto emplaceResult = pImpl->pointTys.try_emplace(
+            pointeeTy, std::unique_ptr<PointerType>(
+                           new PointerType(pointeeTy, addrSpace)));
+        ASSERT(emplaceResult.second);
+        return emplaceResult.first->second.get();
+    }
 }

@@ -10,7 +10,7 @@
 
 size_t SymbolType::size() const {
     size_t item_size = (base_type == SymbolBaseType::INT) ? 4 : 0;
-    size_t count = is_array ? *array_count : 1;
+    size_t count     = is_array ? *array_count : 1;
     return item_size * count;
 }
 
@@ -45,13 +45,13 @@ bool SymbolTable::exist_in_scope(std::string_view symbol_name) const {
 }
 
 SymbolAttr& SymbolTable::try_add_symbol(std::string_view symbol_name,
-                                        SymbolAttr symbol_attr) {
+                                        SymbolAttr       symbol_attr) {
     // // 检查符号是否已在当前作用域中存在
     // if (exist_in_scope(symbol_name)) return nullptr;  // 符号已存在，添加失败
 
     // 创建新节点
     Record record{std::string(symbol_name), symbol_attr, current_scope_level()};
-    auto& ref = set.insert(std::move(record));
+    auto&  ref = set.insert(std::move(record));
     // do not modify ref.name
     return ref.attr;
 }

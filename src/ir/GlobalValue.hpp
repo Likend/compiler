@@ -17,11 +17,10 @@ class GlobalValue : public Constant {
    protected:
     GlobalValue(Type* ty, size_t numOperands, LinkageTypes linkage,
                 std::string name, unsigned addrSpace, Module& m)
-        : Constant(PointerType::get(ty->getContext(),
-                                    addrSpace),  // GlobalValue are pointers
+        : Constant(PointerType::get(ty, addrSpace),  // GlobalValue are pointers
                    numOperands),
           linkage(linkage),
-          valueTy(ty),
+          // valueTy(ty),
           parent(&m) {
         setName(std::move(name));
     }
@@ -30,7 +29,7 @@ class GlobalValue : public Constant {
     friend class Constant;
 
     LinkageTypes linkage;
-    Type*        valueTy;
+    // Type*        valueTy;
 
    protected:
     Module* parent = nullptr;
@@ -40,7 +39,7 @@ class GlobalValue : public Constant {
     PointerType* getType() const {
         return static_cast<PointerType*>(Value::getType());
     }
-    Type*        getValueType() const { return valueTy; }
+    Type*        getValueType() const { return getType()->getPointeeType(); }
     LinkageTypes getLinkageType() const { return linkage; }
     Module*      getParent() const { return parent; }
 
@@ -51,7 +50,8 @@ class GlobalObject : public GlobalValue {
    protected:
     GlobalObject(Type* ty, size_t numOperands, LinkageTypes linkage,
                  std::string name, unsigned addrSpace, Module& m)
-        : GlobalValue(ty, numOperands, linkage, std::move(name), addrSpace, m) {}
+        : GlobalValue(ty, numOperands, linkage, std::move(name), addrSpace, m) {
+    }
 };
 
 class GlobalVariable final : public GlobalObject {

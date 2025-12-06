@@ -77,9 +77,9 @@ Visitor::Visitor(const ASTNode& node) {
                                       "putch", *module);
 
     // declare void @putstr(i8*)       ; 输出字符串
-    auto* putstr_type = ir::FunctionType::get(builder->getVoidTy(),
-                                              {builder->getPtrTy()}, false);
-    putstr_func       = ir::Function::Create(
+    auto* putstr_type = ir::FunctionType::get(
+        builder->getVoidTy(), {builder->getPtrTy(builder->getInt8Ty())}, false);
+    putstr_func = ir::Function::Create(
         putstr_type, ir::Function::ExternalLinkage, "putstr", *module);
 
     // declare init global function
@@ -217,8 +217,7 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                 } else {
                     ASSERT(!const_flag);
                     ir::Value* ptr_to_elem = builder->CreateGEP(
-                        alloc_type, alloc_ptr,
-                        {builder->getInt32(0), builder->getInt32(i)},
+                        alloc_ptr, {builder->getInt32(0), builder->getInt32(i)},
                         "ptr.arr." + std::to_string(i));
                     builder->CreateStore(init_evals[i].exp->rvalue(*builder),
                                          ptr_to_elem);
@@ -250,11 +249,10 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
             for (size_t i = 0; i < std::min(init_evals.size(),
                                             static_cast<size_t>(*array_count));
                  i++) {
-                std::vector<ir::Value*> index = {builder->getInt32(0),
-                                                 builder->getInt32(i)};
-                ir::Value*              ptr_to_elem =
-                    builder->CreateGEP(alloc_type, alloc_ptr, index,
-                                       "ptr.arr." + std::to_string(i));
+                std::vector<ir::Value*> index       = {builder->getInt32(0),
+                                                       builder->getInt32(i)};
+                ir::Value*              ptr_to_elem = builder->CreateGEP(
+                    alloc_ptr, index, "ptr.arr." + std::to_string(i));
                 if (auto const_int = init_evals[i].exp->test_constexpr()) {
                     builder->CreateStore(builder->getInt32(*const_int),
                                          ptr_to_elem);
@@ -386,7 +384,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
                    std::back_inserter(llvm_params_types),
                    [this](SymbolType symbol_type) -> ir::Type* {
                        if (symbol_type.is_array)
-                           return builder->getPtrTy();
+                           return builder->getPtrTy(builder->getInt32Ty());
                        else
                            return builder->getInt32Ty();
                    });
@@ -762,8 +760,11 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
             [this](std::string_view substr) {
                 auto* str_value =
                     builder->CreateGlobalString(std::string(substr), ".str");
+                auto* str_value_gep = builder->CreateGEP(
+                    str_value, {builder->getInt32(0), builder->getInt32(0)},
+                    ".str.gep");
                 builder->CreateCall(putstr_func->getFunctionType(), putstr_func,
-                                    {str_value}, "");
+                                    {str_value_gep}, "");
             });
         // Error 'l'
         if (specifier_count != args.size()) {

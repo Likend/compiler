@@ -19,13 +19,14 @@ enum class SymbolBaseType { INT, VOID };
 
 struct SymbolType {
     SymbolBaseType base_type = SymbolBaseType::INT;
-    bool const_flag = false;
+
+    bool const_flag  = false;
     bool static_flag = false;
-    bool is_array = false;
+    bool is_array    = false;
     bool is_function = false;
 
     std::vector<SymbolType> function_params;
-    std::optional<int> array_count;  // valid when is_array is true
+    std::optional<int>      array_count;  // valid when is_array is true
 
     size_t size() const;
 };
@@ -33,7 +34,7 @@ struct SymbolType {
 struct SymbolAttr {
     SymbolType type;
 
-    ir::Value* addr_value;
+    ir::Value*           addr_value;
     std::vector<int32_t> const_values;
 
     bool is_const() const { return !const_values.empty(); }
@@ -44,9 +45,9 @@ struct SymbolAttr {
 class SymbolTable {
    public:
     struct Record {
-        std::string name;    // 符号名称
-        SymbolAttr attr;     // 符号属性
-        size_t scope_level;  // 作用域层级
+        std::string name;         // 符号名称
+        SymbolAttr  attr;         // 符号属性
+        size_t      scope_level;  // 作用域层级
     };
 
     SymbolTable();
@@ -83,7 +84,7 @@ class SymbolTable {
      * @return SymbolAttr* 是否添加成功（如果已存在则失败）
      */
     SymbolAttr& try_add_symbol(std::string_view symbol_name,
-                               SymbolAttr symbol_attr);
+                               SymbolAttr       symbol_attr);
 
    private:
     struct Hash {

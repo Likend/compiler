@@ -19,7 +19,7 @@ class Exp {
         throw std::runtime_error("Error: Expression cannot be used as Lvalue!");
     }
     virtual std::optional<int32_t> test_constexpr() { return std::nullopt; }
-    virtual Type type() = 0;
+    virtual Type                   type() = 0;
 };
 
 class IntLiteralExp : public Exp {
@@ -33,7 +33,7 @@ class IntLiteralExp : public Exp {
         return builder.getInt32(value);
     }
     std::optional<int32_t> test_constexpr() override { return value; }
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class IntVarExp : public Exp {
@@ -43,10 +43,10 @@ class IntVarExp : public Exp {
    public:
     IntVarExp(const SymbolTable::Record& var_symbol) : var_symbol(var_symbol) {}
 
-    ir::Value* rvalue(ir::IRBuilder& builder) override;
-    ir::Value* lvalue(ir::IRBuilder& builder) override;
+    ir::Value*             rvalue(ir::IRBuilder& builder) override;
+    ir::Value*             lvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class PtrVarExp : public Exp {
@@ -57,16 +57,16 @@ class PtrVarExp : public Exp {
     PtrVarExp(const SymbolTable::Record& var_symbol) : var_symbol(var_symbol) {}
 
     ir::Value* rvalue(ir::IRBuilder& builder) override;
-    Type type() override { return T_PTR; }
+    Type       type() override { return T_PTR; }
 };
 
 class FuncCallExp : public Exp {
    private:
-    const SymbolTable::Record& func_symbol;
+    const SymbolTable::Record&        func_symbol;
     std::vector<std::unique_ptr<Exp>> params;
 
    public:
-    FuncCallExp(const SymbolTable::Record& func_symbol,
+    FuncCallExp(const SymbolTable::Record&        func_symbol,
                 std::vector<std::unique_ptr<Exp>> params)
         : func_symbol(func_symbol), params(std::move(params)) {
         for (const auto& param : this->params) {
@@ -75,30 +75,30 @@ class FuncCallExp : public Exp {
     }
 
     ir::Value* rvalue(ir::IRBuilder& builder) override;
-    Type type() override;  // INT | VOID
+    Type       type() override;  // INT | VOID
 };
 
 class ArrayAccessExp : public Exp {
    private:
     const SymbolTable::Record& record;
-    std::unique_ptr<Exp> index;
+    std::unique_ptr<Exp>       index;
 
    public:
     ArrayAccessExp(const SymbolTable::Record& record,
-                   std::unique_ptr<Exp> index)
+                   std::unique_ptr<Exp>       index)
         : record(record), index(std::move(index)) {
         ASSERT(this->index);
         ASSERT(this->index->type() == T_INT);
     }
 
-    ir::Value* rvalue(ir::IRBuilder& builder) override;
-    ir::Value* lvalue(ir::IRBuilder& builder) override;
+    ir::Value*             rvalue(ir::IRBuilder& builder) override;
+    ir::Value*             lvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class BinaryOpIntExp : public Exp {
-    Token::Type op;  // one of '+', '-', '*', '/', '%'
+    Token::Type          op;  // one of '+', '-', '*', '/', '%'
     std::unique_ptr<Exp> lhs, rhs;
 
    public:
@@ -111,13 +111,13 @@ class BinaryOpIntExp : public Exp {
         ASSERT(this->rhs->type() == T_INT);
     }
 
-    ir::Value* rvalue(ir::IRBuilder& builder) override;
+    ir::Value*             rvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class BinaryOpBoolExp : public Exp {
-    Token::Type op;  // one of '>', '>=', '<', '<=', '==', '!='
+    Token::Type          op;  // one of '>', '>=', '<', '<=', '==', '!='
     std::unique_ptr<Exp> lhs, rhs;
 
    public:
@@ -130,11 +130,11 @@ class BinaryOpBoolExp : public Exp {
         ASSERT(this->rhs->type() == T_INT);
     }
     ir::Value* rvalue(ir::IRBuilder& builder) override;
-    Type type() override { return T_BOOL; }
+    Type       type() override { return T_BOOL; }
 };
 
 class UnaryExp : public Exp {
-    Token::Type op;  // one of '+', '-', '!'
+    Token::Type          op;  // one of '+', '-', '!'
     std::unique_ptr<Exp> exp;
 
    public:
@@ -144,9 +144,9 @@ class UnaryExp : public Exp {
         ASSERT(this->exp->type() == T_INT);
     }
 
-    ir::Value* rvalue(ir::IRBuilder& builder) override;
+    ir::Value*             rvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class PoisonIntVarExp : public Exp {
@@ -158,7 +158,7 @@ class PoisonIntVarExp : public Exp {
         return builder.CreateAlloca(builder.getInt32Ty(), nullptr, "poison");
     }
     std::optional<int32_t> test_constexpr() override { return 0; };
-    Type type() override { return T_INT; }
+    Type                   type() override { return T_INT; }
 };
 
 class IntToBoolExp : public Exp {

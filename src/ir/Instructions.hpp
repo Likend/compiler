@@ -7,6 +7,8 @@
 #include "ir/LLVMContext.hpp"
 #include "ir/Type.hpp"
 #include "ir/User.hpp"
+#include "util/assert.hpp"
+
 namespace ir {
 class BasicBlock;
 
@@ -76,17 +78,16 @@ class BinaryOperator : public Instruction {
                 return "srem";
             case Xor:
                 return "xor";
+            default:
+                UNREACHABLE();
         }
     }
 };
 
 class AllocaInst final : public UnaryInstruction {
-    Type* allocatedType;
     AllocaInst(Type* ty, unsigned addrSpace, Value* arraySize, std::string name,
                BasicBlock* parent)
-        : UnaryInstruction(PointerType::get(ty->getContext(), addrSpace),
-                           arraySize, parent),
-          allocatedType(ty) {
+        : UnaryInstruction(PointerType::get(ty, addrSpace), arraySize, parent) {
         ASSERT(arraySize->getType()->isIntegerTy());
         setName(std::move(name));
     }
@@ -105,7 +106,7 @@ class AllocaInst final : public UnaryInstruction {
         return static_cast<PointerType*>(Instruction::getType());
     }
 
-    Type* getAllocatedType() const { return allocatedType; }
+    Type* getAllocatedType() const { return getType()->getPointeeType(); }
 
     std::string_view getOpcodeName() const override { return "alloca"; }
 };
@@ -158,32 +159,23 @@ class StoreInst final : public Instruction {
 };
 
 class GetElementPtrInst final : public Instruction {
-    Type* sourceElementType;
     Type* resultElementType;
 
-    GetElementPtrInst(Type* pointeeTy, Value* ptr,
-                      const std::vector<Value*>& idxList, std::string name,
-                      BasicBlock* parent);
+    GetElementPtrInst(Value* ptr, const std::vector<Value*>& idxList,
+                      std::string name, BasicBlock* parent);
 
    public:
-    static GetElementPtrInst* Create(Type* pointeeTy, Value* ptr,
+    static GetElementPtrInst* Create(Value*                     ptr,
                                      const std::vector<Value*>& idxList,
                                      std::string name, BasicBlock* parent) {
-        return new GetElementPtrInst(pointeeTy, ptr, idxList, std::move(name),
-                                     parent);
+        return new GetElementPtrInst(ptr, idxList, std::move(name), parent);
     }
 
-    Type* getSourceElementType() const { return sourceElementType; }
+    Type* getSourceElementType() const;
     Type* getResultElementType() const { return resultElementType; }
-    void  setSourceElementType(Type* Ty) { sourceElementType = Ty; }
-    void  setResultElementType(Type* Ty) { resultElementType = Ty; }
 
     Value*       getPointerOperand() { return getOperand(0); }
     const Value* getPointerOperand() const { return getOperand(0); }
-
-    Type* getPointerOperandType() const {
-        return getPointerOperand()->getType();
-    }
 
     op_iterator        idx_begin() { return op_begin() + 1; }
     const_op_interator idx_begin() const { return op_begin() + 1; }
@@ -195,6 +187,12 @@ class GetElementPtrInst final : public Instruction {
     }
 
     std::string_view getOpcodeName() const override { return "getelementptr"; }
+
+    static Type* getGEPReturnType(Value*                    ptr,
+                                  const std::vector<Value*> idxList);
+    static Type* getIndexedType(Type*                     pointeeType,
+                                const std::vector<Value*> idxList);
+    static Type* getTypeAtIndex(Type* pointeeType, Value* idx);
 };
 
 class CmpInst : public Instruction {

@@ -304,7 +304,7 @@ class Printer {
     }
 
     void printModule(const Module* module) {
-        os << "; ModuleID = '" << module->getName() << "'\n";
+        // os << "; ModuleID = '" << module->getName() << "'\n";
         for (const GlobalVariable& gv : module->globals()) {
             printGlobal(&gv);
             os << '\n';
@@ -365,7 +365,8 @@ std::ostream& ir::operator<<(std::ostream& os, const Type* type) {
             break;
         }
         case Type::PointerTyID:
-            os << "ptr";
+            os << static_cast<const PointerType*>(type)->getPointeeType()
+               << '*';
             break;
         case Type::ArrayTyID: {
             const auto* aTy = static_cast<const ArrayType*>(type);
