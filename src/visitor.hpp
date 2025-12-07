@@ -24,9 +24,9 @@
 #include "token.hpp"
 
 struct SymbolRecord {
-    size_t scope_index;
+    size_t           scope_index;
     std::string_view ident_name;
-    SymbolAttr attr;
+    SymbolAttr       attr;
 };
 
 struct ScopeInfo {
@@ -41,7 +41,7 @@ struct ScopeInfo {
 };
 
 struct EvalResult {
-    SymbolType type{};
+    SymbolType           type{};
     std::unique_ptr<Exp> exp;
 };
 
@@ -49,14 +49,14 @@ class Visitor {
    public:
     Visitor(const ASTNode& node);
 
-    Visitor(const Visitor&) = delete;
+    Visitor(const Visitor&)            = delete;
     Visitor& operator=(const Visitor&) = delete;
 
     // void operator()(const ASTNode& node);
     std::vector<SymbolRecord> records;
 
     void write_ir(const std::string& filename) {
-        std::error_code ec;
+        std::error_code      ec;
         llvm::raw_fd_ostream os{filename, ec};
         if (ec)
             std::cerr << "Could not open file: " << ec.message() << std::endl;
@@ -75,7 +75,7 @@ class Visitor {
                         bool static_flag);  // VAR_DEF and CONST_DEF
     std::vector<EvalResult> invoke_var_init_val(
         const ASTNode& node,
-        bool const_flag);  // INIT_VAL and CONST_INIT_VAL
+        bool           const_flag);  // INIT_VAL and CONST_INIT_VAL
 
     void invoke_block(const ASTNode& node, ScopeInfo scope_info);
     void invoke_stmt(const ASTNode& node, ScopeInfo scope_info);
@@ -86,17 +86,17 @@ class Visitor {
     std::unique_ptr<Cond> invoke_cond(const ASTNode& node) const;
 
     std::tuple<EvalResult, Token> invoke_lval(const ASTNode& node) const;
-    EvalResult invoke_number(const ASTNode& node) const;
-    const Token& invoke_unary_op(const ASTNode& node) const;
+    EvalResult                    invoke_number(const ASTNode& node) const;
+    const Token&                  invoke_unary_op(const ASTNode& node) const;
 
-    EvalResult invoke_primary_exp(const ASTNode& node) const;
-    EvalResult invoke_unary_exp(const ASTNode& node) const;
+    EvalResult              invoke_primary_exp(const ASTNode& node) const;
+    EvalResult              invoke_unary_exp(const ASTNode& node) const;
     std::vector<EvalResult> invoke_func_rparams(const ASTNode& node) const;
 
-    EvalResult invoke_mul_exp(const ASTNode& node) const;
-    EvalResult invoke_add_exp(const ASTNode& node) const;
-    EvalResult invoke_rel_exp(const ASTNode& node) const;
-    EvalResult invoke_eq_exp(const ASTNode& node) const;
+    EvalResult            invoke_mul_exp(const ASTNode& node) const;
+    EvalResult            invoke_add_exp(const ASTNode& node) const;
+    EvalResult            invoke_rel_exp(const ASTNode& node) const;
+    EvalResult            invoke_eq_exp(const ASTNode& node) const;
     std::unique_ptr<Cond> invoke_land_exp(const ASTNode& node) const;
     std::unique_ptr<Cond> invoke_lor_exp(const ASTNode& node) const;
 
@@ -124,10 +124,10 @@ class Visitor {
 
     std::unordered_map<std::string, llvm::Value*> symbolTable;
 
-    size_t current_scope = 1;
-    size_t new_define_scope = 1;
+    size_t             current_scope    = 1;
+    size_t             new_define_scope = 1;
     std::stack<size_t> scope_stack;
-    SymbolTable symbol_table;
+    SymbolTable        symbol_table;
 
     // pre-declared functions;
     llvm::Function* putint_func;
@@ -135,6 +135,6 @@ class Visitor {
     llvm::Function* putstr_func;
 
     // init global scope var function
-    llvm::Function* init_global_func;
+    llvm::Function*   init_global_func;
     llvm::BasicBlock* init_global_bb;
 };

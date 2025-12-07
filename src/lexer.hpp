@@ -25,17 +25,17 @@ class Lexer {
     class TokenIterator {
        public:
         using iterator_category = std::forward_iterator_tag;
-        using value_type = Token;
-        using reference_type = const value_type&;
+        using value_type        = Token;
+        using reference_type    = const value_type&;
         // using difference_type = std::ptrdiff_t;
 
        private:
         // Lexer* lexer;
         std::string_view src;
-        It it;
-        size_t col = 1;
-        size_t line = 1;
-        Token tok;
+        It               it;
+        size_t           col  = 1;
+        size_t           line = 1;
+        Token            tok;
 
        public:
         TokenIterator() = default;
@@ -48,10 +48,10 @@ class Lexer {
         }
 
         inline TokenIterator(const TokenIterator& other) = default;
-        inline TokenIterator(TokenIterator&& other) = default;
+        inline TokenIterator(TokenIterator&& other)      = default;
 
         inline TokenIterator& operator=(const TokenIterator&) = default;
-        inline TokenIterator& operator=(TokenIterator&&) = default;
+        inline TokenIterator& operator=(TokenIterator&&)      = default;
 
         [[nodiscard]] inline reference_type operator*() const noexcept {
             return tok;

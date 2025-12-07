@@ -136,18 +136,18 @@ std::ostream& operator<<(std::ostream& os, const ASTNode& node) {
 }
 
 using Element = ASTNode::Element;
-using Map = ASTNode::Map;
+using Map     = ASTNode::Map;
 
 struct ParserContext {
     Lexer::iterator& it;
-    Map& container;
-    Token& last_token;
-    bool strict;
+    Map&             container;
+    Token&           last_token;
+    bool             strict;
 
     struct Marker {
-        Lexer::iterator it;
+        Lexer::iterator  it;
         Map::ScopeMarker map_marker;
-        Token token_packup;
+        Token            token_packup;
     };
 
     Marker save_marker() {
@@ -273,7 +273,7 @@ template <ASTNode::Type type, typename Parser>
 struct Define {
     bool operator()(ParserContext bundle) {
         auto ast_node = std::make_unique<ASTNode>(type);
-        bool res = Parser{}(bundle.update_container(ast_node->children));
+        bool res      = Parser{}(bundle.update_container(ast_node->children));
         if (res) {
             bundle.container.insert(std::move(ast_node));
         }
@@ -421,9 +421,9 @@ DEFINE(LAND_EXP, BINEXP(LAND_EXP, NODE(EQ_EXP), TOKEN(AND)));
 DEFINE(LOR_EXP, BINEXP(LOR_EXP, NODE(LAND_EXP), TOKEN(OR)));
 
 std::optional<Map> parse_grammer(Lexer::iterator& it) {
-    Map ret;
+    Map   ret;
     Token none;
-    bool result = ParseNode<ASTNode::Type::COMP_UNIT>{}(
+    bool  result = ParseNode<ASTNode::Type::COMP_UNIT>{}(
         ParserContext{it, ret, none, false});
     if (!result) return std::nullopt;
     return ret;

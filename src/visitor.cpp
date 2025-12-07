@@ -68,25 +68,25 @@ Visitor::Visitor(const ASTNode& node) {
         getint_type, llvm::Function::ExternalLinkage, "getint", *module);
     SymbolAttr attr;
     attr.type.is_function = true;
-    attr.addr_value = getint_value;
+    attr.addr_value       = getint_value;
     symbol_table.try_add_symbol("getint", attr);
 
     // declare void @putint(i32)      ; 输出一个整数
     auto* putint_type = llvm::FunctionType::get(builder->getVoidTy(),
                                                 {builder->getInt32Ty()}, false);
-    putint_func = llvm::Function::Create(
+    putint_func       = llvm::Function::Create(
         putint_type, llvm::Function::ExternalLinkage, "putint", *module);
 
     // declare void @putch(i32)       ; 输出一个字符
     auto* putch_type = llvm::FunctionType::get(builder->getVoidTy(),
                                                {builder->getInt32Ty()}, false);
-    putch_func = llvm::Function::Create(
+    putch_func       = llvm::Function::Create(
         putch_type, llvm::Function::ExternalLinkage, "putch", *module);
 
     // declare void @putstr(i8*)       ; 输出字符串
     auto* putstr_type = llvm::FunctionType::get(builder->getVoidTy(),
                                                 {builder->getPtrTy()}, false);
-    putstr_func = llvm::Function::Create(
+    putstr_func       = llvm::Function::Create(
         putstr_type, llvm::Function::ExternalLinkage, "putstr", *module);
 
     // declare init global function
@@ -136,7 +136,7 @@ void Visitor::invoke_var_decl(const ASTNode& node) {
         UNEXPECTED_TYPE(node.type);
     }
 
-    bool const_flag = (node.children.get(Token::Type::CONSTTK) != nullptr);
+    bool const_flag  = (node.children.get(Token::Type::CONSTTK) != nullptr);
     bool static_flag = (node.children.get(Token::Type::STATICTK) != nullptr);
 
     for (const auto& def : node.children.equal_range(
@@ -163,14 +163,14 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
-    bool is_array = false;
+    bool               is_array = false;
     std::optional<int> array_count;
     if (node.children.get(Token::Type::LBRACK)) {  // Ident [ ConstExp ]
-        is_array = true;
+        is_array              = true;
         const auto* const_exp = node.children.get(ASTNode::Type::CONST_EXP);
         ASSERT(const_exp);
         auto exp_eval = invoke_exp(*const_exp);
-        auto value = exp_eval.exp->test_constexpr();
+        auto value    = exp_eval.exp->test_constexpr();
         ASSERT(value.has_value());
         array_count = *value;
     }
@@ -291,14 +291,14 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     // Add to symbol table
     SymbolType type;
-    type.base_type = SymbolBaseType::INT;
-    type.const_flag = const_flag;
+    type.base_type   = SymbolBaseType::INT;
+    type.const_flag  = const_flag;
     type.static_flag = static_flag;
-    type.is_array = is_array;
+    type.is_array    = is_array;
     type.array_count = array_count;
     SymbolAttr attr;
-    attr.type = type;
-    attr.addr_value = alloc_ptr;
+    attr.type         = type;
+    attr.addr_value   = alloc_ptr;
     attr.const_values = std::move(const_values);
     add_symbol(*ident, attr);
 }
@@ -347,19 +347,19 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     // 1. ScopeInfo
     // 2. llvm function def
     llvm::Type* llvm_return_type;
-    ScopeInfo scope_info;
+    ScopeInfo   scope_info;
     if (is_main_func) {
         scope_info.return_type = SymbolBaseType::INT;
-        llvm_return_type = builder->getInt32Ty();
+        llvm_return_type       = builder->getInt32Ty();
     } else {
         const ASTNode* func_type = node.children.get(ASTNode::Type::FUNC_TYPE);
         ASSERT(func_type);
         if (func_type->children.get(Token::Type::INTTK)) {
             scope_info.return_type = SymbolBaseType::INT;
-            llvm_return_type = builder->getInt32Ty();
+            llvm_return_type       = builder->getInt32Ty();
         } else if (func_type->children.get(Token::Type::VOIDTK)) {
             scope_info.return_type = SymbolBaseType::VOID;
-            llvm_return_type = builder->getVoidTy();
+            llvm_return_type       = builder->getVoidTy();
         } else {
             UNREACHABLE();
         }
@@ -368,8 +368,8 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     // 1. function name & function_ident
     // 2. function params
     std::vector<std::tuple<SymbolType, Token>> params;
-    std::string_view function_name;
-    const Token* function_ident;
+    std::string_view                           function_name;
+    const Token*                               function_ident;
     if (is_main_func) {
         function_name = "main";
     } else {
@@ -408,10 +408,10 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     // add function to symbol table
     if (!is_main_func) {
         SymbolAttr attr;
-        attr.type.base_type = scope_info.return_type;
+        attr.type.base_type       = scope_info.return_type;
         attr.type.function_params = std::move(params_types);
-        attr.type.is_function = true;
-        attr.addr_value = llvm_function_value;
+        attr.type.is_function     = true;
+        attr.addr_value           = llvm_function_value;
         add_symbol(*function_ident, attr);
     }
 
@@ -435,7 +435,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         }
 
         SymbolAttr attr;
-        attr.type = type;
+        attr.type       = type;
         attr.addr_value = arg_ptr;
         add_symbol(ident, attr);
         i++;
@@ -478,7 +478,7 @@ std::tuple<SymbolType, Token> Visitor::invoke_func_param(const ASTNode& node) {
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
 
-    bool is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
+    bool       is_array = (node.children.get(Token::Type::LBRACK) != nullptr);
     SymbolType type;
     type.is_array = is_array;
     return std::make_tuple(type, *ident);
@@ -527,11 +527,11 @@ void Visitor::invoke_block(const ASTNode& node, ScopeInfo scope_info) {
 template <typename F_deli, typename F_substr>
 static void split_string_skip_empty(std::string_view str,
                                     std::string_view delimiter,
-                                    F_deli delimiter_handler,
-                                    F_substr substr_handler) {
+                                    F_deli           delimiter_handler,
+                                    F_substr         substr_handler) {
     size_t start = 0;
     for (size_t end = str.find(delimiter); end != std::string_view::npos;
-         end = str.find(delimiter, start)) {
+         end        = str.find(delimiter, start)) {
         if (end > start) {  // 只有当子串非空时才添加
             substr_handler(str.substr(start, end - start));
         }
@@ -580,7 +580,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
     auto inner_invoke_if_stmt = [&]() {
         const ASTNode* cond_node = node.children.get(ASTNode::Type::COND);
         ASSERT(cond_node);
-        auto cond = invoke_cond(*cond_node);
+        auto cond     = invoke_cond(*cond_node);
         bool has_else = node.children.get(Token::Type::ELSETK) != nullptr;
 
         llvm::Function* this_function = builder->GetInsertBlock()->getParent();
@@ -618,7 +618,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
 
     // 'for' '(' [ForStmt] ';' [Cond] ';' [ForStmt] ')' Stmt
     auto inner_invoke_for_stmt = [&]() {
-        auto it = node.children.begin();
+        auto it      = node.children.begin();
         auto for_tok = std::get<Token>(*it);
         ASSERT_TOKEN_TYPE(FORTK, for_tok);
         ++it;
@@ -745,7 +745,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         }
 
         std::string_view str_ref = string_const->content;
-        str_ref = str_ref.substr(
+        str_ref                  = str_ref.substr(
             1, str_ref.length() - 2);  // remove first and last '""
 
         // replace '\n'
@@ -834,15 +834,15 @@ void Visitor::invoke_for_stmt(const ASTNode& node) {
     ASSERT_AST_TYPE(FOR_STMT, node);
 
     auto lval_rg = node.children.equal_range(ASTNode::Type::L_VAL);
-    auto exp_rg = node.children.equal_range(ASTNode::Type::EXP);
+    auto exp_rg  = node.children.equal_range(ASTNode::Type::EXP);
 
     auto lval_it = lval_rg.begin();
-    auto exp_it = exp_rg.begin();
+    auto exp_it  = exp_rg.begin();
     for (; lval_it != lval_rg.end(); ++lval_it, ++exp_it) {
         ASSERT(exp_it != exp_rg.end());
 
         const ASTNode& lval = *lval_it;
-        const ASTNode& exp = *exp_it;
+        const ASTNode& exp  = *exp_it;
 
         auto [lval_eval, lval_token] = invoke_lval(lval);
 
@@ -915,7 +915,7 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) const {
                     "Use of undefined ident");
     }
 
-    bool has_index;
+    bool                 has_index;
     std::unique_ptr<Exp> ret_exp;
     if (node.children.get(Token::Type::LBRACK)) {
         const ASTNode* exp = node.children.get(ASTNode::Type::EXP);
@@ -949,7 +949,7 @@ std::tuple<EvalResult, Token> Visitor::invoke_lval(const ASTNode& node) const {
     }
     EvalResult result;
     result.type = type;
-    result.exp = std::move(ret_exp);
+    result.exp  = std::move(ret_exp);
     return std::make_tuple(std::move(result), *ident);
 }
 
@@ -971,7 +971,7 @@ EvalResult Visitor::invoke_number(const ASTNode& node) const {
 
     EvalResult eval_result;
     eval_result.type.const_flag = true;
-    eval_result.exp = std::make_unique<IntLiteralExp>(value);
+    eval_result.exp             = std::make_unique<IntLiteralExp>(value);
     return eval_result;
 }
 
@@ -1034,7 +1034,7 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node) const {
             // 处理返回值
             // ASSERT(record->attr.base_type != SymbolBaseType::VOID);
             result.type.base_type = record->attr.type.base_type;
-            result.type.is_array = record->attr.type.is_array;
+            result.type.is_array  = record->attr.type.is_array;
             return result;
         } else {
             reportError(ErrorInfo::Type::UNDEFINED_IDENT, *ident,
@@ -1045,11 +1045,11 @@ EvalResult Visitor::invoke_unary_exp(const ASTNode& node) const {
         }
     } else if (const ASTNode* unary_op =
                    node.children.get(ASTNode::Type::UNARY_OP)) {
-        const Token& op_token = invoke_unary_op(*unary_op);
+        const Token&   op_token  = invoke_unary_op(*unary_op);
         const ASTNode* unary_exp = node.children.get(ASTNode::Type::UNARY_EXP);
         ASSERT(unary_exp);
         auto unary_exp_eval = invoke_unary_exp(*unary_exp);
-        unary_exp_eval.exp = std::make_unique<UnaryExp>(
+        unary_exp_eval.exp  = std::make_unique<UnaryExp>(
             op_token.type, std::move(unary_exp_eval.exp));
         return unary_exp_eval;
     } else {
@@ -1092,7 +1092,7 @@ std::vector<EvalResult> Visitor::invoke_func_rparams(
 // Modified:
 //    MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }
 EvalResult Visitor::invoke_mul_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1118,7 +1118,7 @@ EvalResult Visitor::invoke_mul_exp(const ASTNode& node) const {
 // Modified:
 //     AddExp -> MulExp { ('+' | '-') MulExp }
 EvalResult Visitor::invoke_add_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1145,7 +1145,7 @@ EvalResult Visitor::invoke_add_exp(const ASTNode& node) const {
 // Modified:
 //     RelExp -> AddExp { ('<' | '>' | '<=' | '>=') AddExp }
 EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1172,7 +1172,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
 // Modified:
 //     EqExp -> RelExp { ('==' | '!=') RelExp }
 EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1199,7 +1199,7 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
 // Modified:
 //     LAndExp -> EqExp { '&&' EqExp }
 std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 
@@ -1230,7 +1230,7 @@ std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
 // Modified:
 //     LOrExp -> LAndExp { '||' LAndExp }
 std::unique_ptr<Cond> Visitor::invoke_lor_exp(const ASTNode& node) const {
-    auto it = node.children.begin();
+    auto        it    = node.children.begin();
     const auto& child = std::get<NodePtr>(*it);
     ++it;
 

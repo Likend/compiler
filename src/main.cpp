@@ -13,7 +13,6 @@
 #include "lexer.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
-#include "util/assert.hpp"
 #include "visitor.hpp"
 
 std::optional<std::string> read_file() {
@@ -36,7 +35,7 @@ void print_error_infos() {
     std::ofstream output{"./error.txt", std::ios_base::out};
     for (auto& error : error_infos) {
 #ifdef NDEBUG
-        output << error.line << ' ' << error.type << std::endl;
+        output << error.token.line << ' ' << static_cast<char>(error.type) << std::endl;
 #else
         output << error.token.line << ':' << error.token.col << ' '
                << error.token.type << ' ' << error.token.content << ' '
@@ -65,9 +64,9 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
 
 int main() {
     if (std::optional<std::string> src = read_file()) {
-        Lexer lexer{*src};
-        auto it = lexer.begin();
-        auto map = parse_grammer(it);
+        Lexer             lexer{*src};
+        auto              it  = lexer.begin();
+        auto              map = parse_grammer(it);
         const auto* const ast = map->get(ASTNode::Type::COMP_UNIT);
 
         if (ast) {

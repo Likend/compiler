@@ -78,7 +78,7 @@ llvm::Value* ArrayAccessExp::rvalue(llvm::IRBuilder<>& builder) {
 
 llvm::Value* ArrayAccessExp::lvalue(llvm::IRBuilder<>& builder) {
     llvm::Value* index_val = index->rvalue(builder);
-    llvm::Value* addr_val = record.attr.addr_value;
+    llvm::Value* addr_val  = record.attr.addr_value;
 
     if (auto* alloca_inst = llvm::dyn_cast<llvm::AllocaInst>(addr_val)) {
         llvm::Type* source_element_type = alloca_inst->getAllocatedType();
