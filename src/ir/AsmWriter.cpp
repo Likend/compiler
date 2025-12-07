@@ -11,6 +11,7 @@
 #include "ir/Module.hpp"
 #include "ir/Type.hpp"
 #include "ir/Value.hpp"
+#include "util/assert.hpp"
 
 using namespace ir;
 
@@ -184,6 +185,10 @@ class Printer {
             os << "c\"";
             printEscapedString(ca->getAsString());
             os << '"';
+        } else if (dynamic_cast<const ConstantAggregateZero*>(constant)) {
+            os << "zeroinitializer";
+        } else {
+            UNREACHABLE();
         }
     }
 

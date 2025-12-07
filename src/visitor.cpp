@@ -155,8 +155,8 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     const Token* ident = node.children.get(Token::Type::IDENFR);
     ASSERT(ident);
-    bool               is_array = false;
-    std::optional<int> array_count;
+    bool   is_array    = false;
+    size_t array_count = 0;                        // valid when is_array
     if (node.children.get(Token::Type::LBRACK)) {  // Ident [ ConstExp ]
         is_array              = true;
         const auto* const_exp = node.children.get(ASTNode::Type::CONST_EXP);
@@ -170,7 +170,7 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
     // alloc address
     ir::Type* alloc_type;
     if (is_array) {
-        alloc_type = ir::ArrayType::get(builder->getInt32Ty(), *array_count);
+        alloc_type = ir::ArrayType::get(builder->getInt32Ty(), array_count);
     } else {
         alloc_type = builder->getInt32Ty();
     }
@@ -187,12 +187,14 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
     // initializer
     std::vector<EvalResult> init_evals;
+    bool                    has_initializer = false;
     if (node.children.get(Token::Type::ASSIGN)) {
         const ASTNode* init_val =
             node.children.get(const_flag ? ASTNode::Type::CONST_INIT_VAL
                                          : ASTNode::Type::INIT_VAL);
         ASSERT(init_val);
-        init_evals = invoke_var_init_val(*init_val, const_flag);
+        init_evals      = invoke_var_init_val(*init_val, const_flag);
+        has_initializer = true;
     }
 
     std::vector<int32_t> const_values;
@@ -204,30 +206,35 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
         builder->SetInsertPoint(init_global_bb);
 
         if (is_array) {
-            std::vector<ir::Constant*> array_const_elem(*array_count,
-                                                        const_zero);
+            if (has_initializer) {
+                std::vector<ir::Constant*> array_const_elem(array_count,
+                                                            const_zero);
 
-            for (size_t i = 0; i < std::min(init_evals.size(),
-                                            static_cast<size_t>(*array_count));
-                 i++) {
-                if (auto const_int = init_evals[i].exp->test_constexpr()) {
-                    array_const_elem[i] =
-                        ir::ConstantInt::get(builder->getInt32Ty(), *const_int);
-                    if (const_flag) const_values.push_back(*const_int);
-                } else {
-                    ASSERT(!const_flag);
-                    ir::Value* ptr_to_elem = builder->CreateGEP(
-                        alloc_type, alloc_ptr,
-                        {builder->getInt32(0), builder->getInt32(i)},
-                        "ptr.arr." + std::to_string(i));
-                    builder->CreateStore(init_evals[i].exp->rvalue(*builder),
-                                         ptr_to_elem);
+                for (size_t i = 0; i < std::min(init_evals.size(), array_count);
+                     i++) {
+                    if (auto const_int = init_evals[i].exp->test_constexpr()) {
+                        array_const_elem[i] = ir::ConstantInt::get(
+                            builder->getInt32Ty(), *const_int);
+                        if (const_flag) const_values.push_back(*const_int);
+                    } else {
+                        ASSERT(!const_flag);
+                        ir::Value* ptr_to_elem =
+                            builder->CreateGEP(builder->getInt32Ty(), alloc_ptr,
+                                               {builder->getInt32(i)},
+                                               "ptr.arr." + std::to_string(i));
+                        builder->CreateStore(
+                            init_evals[i].exp->rvalue(*builder), ptr_to_elem);
+                    }
                 }
+                global_ptr->setInitializer(ir::ConstantArray::get(
+                    static_cast<ir::ArrayType*>(alloc_type), array_const_elem));
+            } else {
+                ir::Constant* zeroInitializer =
+                    ir::ConstantAggregateZero::get(alloc_type);
+                global_ptr->setInitializer(zeroInitializer);
             }
-            global_ptr->setInitializer(ir::ConstantArray::get(
-                static_cast<ir::ArrayType*>(alloc_type), array_const_elem));
         } else {
-            if (!init_evals.empty()) {
+            if (has_initializer) {
                 ASSERT(init_evals.size() == 1);
                 if (auto const_int = init_evals[0].exp->test_constexpr()) {
                     global_ptr->setInitializer(ir::ConstantInt::get(
@@ -248,7 +255,7 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
     } else {
         if (is_array) {
             for (size_t i = 0; i < std::min(init_evals.size(),
-                                            static_cast<size_t>(*array_count));
+                                            static_cast<size_t>(array_count));
                  i++) {
                 std::vector<ir::Value*> index = {builder->getInt32(0),
                                                  builder->getInt32(i)};

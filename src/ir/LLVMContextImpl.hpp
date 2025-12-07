@@ -38,6 +38,8 @@ class LLVMContextImpl {
     std::unordered_map<std::tuple<unsigned, int32_t>,
                        std::unique_ptr<ConstantInt>>
         intConstants;
+    std::unordered_map<Type*, std::unique_ptr<ConstantAggregateZero>>
+        zeroConstants;
 
     std::unordered_set<Module*> ownedModules;
 

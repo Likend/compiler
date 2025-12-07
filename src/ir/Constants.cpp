@@ -38,3 +38,13 @@ ConstantString* ConstantString::getString(LLVMContext& c, std::string str) {
             new ConstantString{c, std::move(str)}))
         .get();
 }
+
+ConstantAggregateZero* ConstantAggregateZero::get(Type* ty) {
+    LLVMContextImpl* pImpl = ty->getContext().pImpl.get();
+    auto&            it    = pImpl->zeroConstants[ty];
+    if (!it.get()) {
+        it = std::unique_ptr<ConstantAggregateZero>(
+            new ConstantAggregateZero{ty});
+    }
+    return it.get();
+}
