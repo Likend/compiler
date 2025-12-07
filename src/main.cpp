@@ -73,7 +73,7 @@ int main() {
             print_ast(*ast);
 
             Visitor visitor{*ast};
-            visitor.write_ir("ir.ll");
+            visitor.write_ir("llvm_ir.txt");
             print_symbol_record(visitor.records);
         }
         print_error_infos();

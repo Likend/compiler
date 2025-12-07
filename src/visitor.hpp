@@ -23,6 +23,8 @@
 #include "symbol_table.hpp"
 #include "token.hpp"
 
+namespace ir = llvm;
+
 struct SymbolRecord {
     size_t           scope_index;
     std::string_view ident_name;
@@ -32,8 +34,8 @@ struct SymbolRecord {
 struct ScopeInfo {
     SymbolBaseType return_type = SymbolBaseType::INT;
     struct ForInfo {
-        llvm::BasicBlock* update_bb;  // continue jump to here
-        llvm::BasicBlock* after_bb;   // break jump to here
+        ir::BasicBlock* update_bb;  // continue jump to here
+        ir::BasicBlock* after_bb;   // break jump to here
     };
     std::optional<ForInfo> for_info = std::nullopt;
 
@@ -56,8 +58,8 @@ class Visitor {
     std::vector<SymbolRecord> records;
 
     void write_ir(const std::string& filename) {
-        std::error_code      ec;
-        llvm::raw_fd_ostream os{filename, ec};
+        std::error_code    ec;
+        ir::raw_fd_ostream os{filename, ec};
         if (ec)
             std::cerr << "Could not open file: " << ec.message() << std::endl;
         else
@@ -115,14 +117,14 @@ class Visitor {
     //                     const SymbolAttr& attr);
 
    private:
-    std::unique_ptr<llvm::LLVMContext> context =
-        std::make_unique<llvm::LLVMContext>();
-    std::unique_ptr<llvm::Module> module =
-        std::make_unique<llvm::Module>("module", *context);
-    std::unique_ptr<llvm::IRBuilder<>> builder =
-        std::make_unique<llvm::IRBuilder<>>(*context);
+    std::unique_ptr<ir::LLVMContext> context =
+        std::make_unique<ir::LLVMContext>();
+    std::unique_ptr<ir::Module> module =
+        std::make_unique<ir::Module>("module", *context);
+    std::unique_ptr<ir::IRBuilder<>> builder =
+        std::make_unique<ir::IRBuilder<>>(*context);
 
-    std::unordered_map<std::string, llvm::Value*> symbolTable;
+    std::unordered_map<std::string, ir::Value*> symbolTable;
 
     size_t             current_scope    = 1;
     size_t             new_define_scope = 1;
@@ -130,11 +132,11 @@ class Visitor {
     SymbolTable        symbol_table;
 
     // pre-declared functions;
-    llvm::Function* putint_func;
-    llvm::Function* putch_func;
-    llvm::Function* putstr_func;
+    ir::Function* putint_func;
+    ir::Function* putch_func;
+    ir::Function* putstr_func;
 
     // init global scope var function
-    llvm::Function*   init_global_func;
-    llvm::BasicBlock* init_global_bb;
+    ir::Function*   init_global_func;
+    ir::BasicBlock* init_global_bb;
 };

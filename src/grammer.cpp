@@ -1,6 +1,5 @@
 #include "grammer.hpp"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
