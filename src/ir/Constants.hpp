@@ -77,4 +77,11 @@ class ConstantString final : public ConstantData {
 
     std::string_view getAsString() const { return str; }
 };
+
+class ConstantAggregateZero final : public ConstantData {
+    ConstantAggregateZero(Type* ty) : ConstantData(ty) {}
+
+   public:
+    static ConstantAggregateZero* get(Type* ty);
+};
 }  // namespace ir
