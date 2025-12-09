@@ -306,23 +306,25 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
         builder->SetInsertPoint(current_bb);
     } else {
         if (is_array) {
-            for (size_t i = 0; i < std::min(init_evals.size(),
-                                            static_cast<size_t>(array_count));
-                 i++) {
+            for (size_t i = 0; i < static_cast<size_t>(array_count); i++) {
                 std::vector<ir::Value*> index = {builder->getInt32(0),
                                                  builder->getInt32(i)};
 
                 ir::Value* ptr_to_elem =
                     builder->CreateGEP(alloc_type, alloc_ptr, index,
                                        "ptr.arr." + std::to_string(i));
-                if (auto const_int = init_evals[i].exp->test_constexpr()) {
-                    builder->CreateStore(builder->getInt32(*const_int),
-                                         ptr_to_elem);
-                    if (const_flag) const_values.push_back(*const_int);
+                if (i < init_evals.size()) {
+                    if (auto const_int = init_evals[i].exp->test_constexpr()) {
+                        builder->CreateStore(builder->getInt32(*const_int),
+                                             ptr_to_elem);
+                        if (const_flag) const_values.push_back(*const_int);
+                    } else {
+                        ASSERT(!const_flag);
+                        builder->CreateStore(
+                            init_evals[i].exp->rvalue(*builder), ptr_to_elem);
+                    }
                 } else {
-                    ASSERT(!const_flag);
-                    builder->CreateStore(init_evals[i].exp->rvalue(*builder),
-                                         ptr_to_elem);
+                    builder->CreateStore(builder->getInt32(0), ptr_to_elem);
                 }
             }
         } else {
