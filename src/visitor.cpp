@@ -502,6 +502,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
     ASSERT(block);
     invoke_block(*block, scope_info);
     pop_scope();
+    builder->SetInsertPoint(nullptr);
 }
 
 // 函数形参表 FuncFParams -> FuncFParam { ',' FuncFParam }
