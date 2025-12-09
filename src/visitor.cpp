@@ -797,10 +797,13 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const Token* string_const = node.children.get(Token::Type::STRCON);
         ASSERT(string_const);
 
-        std::vector<EvalResult> args;
+        // std::vector<EvalResult> args_evals;
+        std::vector<ir::Value*> args_values;
         for (const ASTNode& exp :
              node.children.equal_range(ASTNode::Type::EXP)) {
-            args.push_back(invoke_exp(exp));
+            EvalResult eval = invoke_exp(exp);
+            // args_evals.push_back(eval);
+            args_values.push_back(eval.exp->rvalue(*builder));
         }
 
         std::string_view str_ref = string_const->content;
@@ -816,12 +819,11 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         size_t specifier_count = 0;
         split_string_skip_empty(
             str, "%d",
-            [this, &specifier_count, &args]() {
-                if (args.size() > specifier_count) {
-                    EvalResult& eval = args[specifier_count];
+            [this, &specifier_count, &args_values]() {
+                if (args_values.size() > specifier_count) {
+                    auto* arg_value = args_values[specifier_count];
                     builder->CreateCall(putint_func->getFunctionType(),
-                                        putint_func,
-                                        {eval.exp->rvalue(*builder)}, "");
+                                        putint_func, {arg_value}, "");
                 }
                 specifier_count++;
             },
@@ -835,7 +837,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
                                     {str_value_gep}, "");
             });
         // Error 'l'
-        if (specifier_count != args.size()) {
+        if (specifier_count != args_values.size()) {
             reportError(ErrorInfo::Type::PRINTF_FORMAT_MISMATCH, *printf_token,
                         "Printf format mismatch");
         }
