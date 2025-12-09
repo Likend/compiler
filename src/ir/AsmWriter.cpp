@@ -117,9 +117,9 @@ class Printer {
         os << getNamePrefix(value) << value->getName();
     }
 
-    void printArgument(const Argument* arg) {
+    void printArgument(const Argument* arg, bool isDeclaration) {
         os << arg->getType();
-        if (!arg->getName().empty()) {
+        if (!isDeclaration && !arg->getName().empty()) {
             os << ' ';
             printValueName(arg);
         }
@@ -290,7 +290,7 @@ class Printer {
         Delimeter deli(", ");
         for (const Argument& arg : f->args()) {
             os << deli();
-            printArgument(&arg);
+            printArgument(&arg, f->isDeclaration());
         }
         os << ") ";
 
