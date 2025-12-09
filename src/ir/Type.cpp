@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iterator>
 #include <memory>
-#include <utility>
+#include <tuple>
 
 #include "ir/LLVMContext.hpp"
 #include "ir/LLVMContextImpl.hpp"
@@ -21,14 +21,11 @@ IntegerType::IntegerType(LLVMContext& c, unsigned numBits)
 
 IntegerType* IntegerType::get(LLVMContext& c, unsigned NumBits) {
     LLVMContextImpl* pImpl = c.pImpl.get();
-    if (auto it = pImpl->intTys.find(NumBits); it != pImpl->intTys.end()) {
-        return it->second.get();
-    } else {
-        auto emplateResult = pImpl->intTys.try_emplace(
-            NumBits, std::unique_ptr<IntegerType>(new IntegerType{c, NumBits}));
-        ASSERT(emplateResult.second);
-        return emplateResult.first->second.get();
+    auto&            it    = pImpl->intTys[NumBits];
+    if (!it.get()) {
+        it = std::unique_ptr<IntegerType>(new IntegerType{c, NumBits});
     }
+    return it.get();
 }
 
 FunctionType::FunctionType(Type* ReturnType, const std::vector<Type*>& params,
@@ -74,19 +71,11 @@ ArrayType::ArrayType(Type* elemType, size_t elemNum)
 
 ArrayType* ArrayType::get(Type* elemType, size_t elemNum) {
     LLVMContextImpl* pImpl = elemType->getContext().pImpl.get();
-    auto find = [elemType, elemNum](const std::unique_ptr<ArrayType>& ty) {
-        return ty->getElementType() == elemType &&
-               ty->getNumElements() == elemNum;
-    };
-    if (auto it =
-            std::find_if(pImpl->arrTyps.begin(), pImpl->arrTyps.end(), find);
-        it != pImpl->arrTyps.end())
-        return it->get();
-    else
-        return pImpl->arrTyps
-            .emplace_back(
-                std::unique_ptr<ArrayType>(new ArrayType{elemType, elemNum}))
-            .get();
+    auto&            it    = pImpl->arrTyps[std::make_tuple(elemType, elemNum)];
+    if (!it.get()) {
+        it = std::unique_ptr<ArrayType>(new ArrayType{elemType, elemNum});
+    }
+    return it.get();
 }
 
 PointerType::PointerType(LLVMContext& c, unsigned addrSpace)

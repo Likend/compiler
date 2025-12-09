@@ -31,20 +31,26 @@ class LLVMContextImpl {
     Type        labelTy;
     PointerType pointerTy;
 
-    std::vector<std::unique_ptr<FunctionType>>                 functionTys;
-    std::vector<std::unique_ptr<ArrayType>>                    arrTyps;
-    std::unordered_map<unsigned, std::unique_ptr<IntegerType>> intTys;
+    template <typename K, typename V>
+    using map = std::unordered_map<K, V>;
 
-    std::unordered_map<std::tuple<unsigned, int32_t>,
-                       std::unique_ptr<ConstantInt>>
-        intConstants;
-    std::unordered_map<Type*, std::unique_ptr<ConstantAggregateZero>>
-        zeroConstants;
+    template <typename... T>
+    using tuple = std::tuple<T...>;
+
+    template <typename T>
+    using ptr = std::unique_ptr<T>;
+
+    std::vector<ptr<FunctionType>>            functionTys;
+    map<tuple<Type*, size_t>, ptr<ArrayType>> arrTyps;
+    map<unsigned, ptr<IntegerType>>           intTys;
+
+    map<tuple<unsigned, int32_t>, ptr<ConstantInt>> intConstants;
+    map<Type*, ptr<ConstantAggregateZero>>          zeroConstants;
 
     std::unordered_set<Module*> ownedModules;
 
-    std::vector<std::unique_ptr<ConstantArray>>  constArrayPool;
-    std::vector<std::unique_ptr<ConstantString>> globalStringPool;
+    std::vector<ptr<ConstantArray>>  constArrayPool;
+    std::vector<ptr<ConstantString>> globalStringPool;
 
     friend class LLVMContext;
     LLVMContextImpl(LLVMContext& c);
