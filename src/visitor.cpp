@@ -59,28 +59,82 @@ Visitor::Visitor(const ASTNode& node) {
     auto* getint_type = ir::FunctionType::get(builder->getInt32Ty(), {}, false);
     auto* getint_value = ir::Function::Create(
         getint_type, ir::Function::ExternalLinkage, "getint", *module);
-    SymbolAttr attr;
-    attr.type.is_function = true;
-    attr.addr_value       = getint_value;
-    symbol_table.try_add_symbol("getint", attr);
+    SymbolAttr getint_attr;
+    getint_attr.type.is_function = true;
+    getint_attr.addr_value       = getint_value;
+    symbol_table.try_add_symbol("getint", getint_attr);
+
+    // declare i32 @getchar()
+    auto* getchar_type =
+        ir::FunctionType::get(builder->getInt32Ty(), {}, false);
+    auto* getchar_value = ir::Function::Create(
+        getchar_type, ir::Function::ExternalLinkage, "getchar", *module);
+    SymbolAttr getchar_attr;
+    getchar_attr.type.is_function = true;
+    getchar_attr.addr_value       = getchar_value;
+    symbol_table.try_add_symbol("getchar", getchar_attr);
+
+    SymbolType int_type = SymbolType{};
+    int_type.base_type  = SymbolBaseType::INT;
+    SymbolType array_type;
+    array_type.base_type = SymbolBaseType::INT;
+    array_type.is_array  = true;
+
+    // declare i32 @getarray(i32*)
+    auto* getarray_type = ir::FunctionType::get(
+        builder->getInt32Ty(), {builder->getPtrTy(builder->getInt32Ty())},
+        false);
+    auto* getarray_func = ir::Function::Create(
+        getarray_type, ir::Function::ExternalLinkage, "getarray", *module);
+    SymbolAttr getarray_attr;
+    getarray_attr.type.function_params = {array_type};
+    getarray_attr.type.is_function     = true;
+    getarray_attr.addr_value           = getarray_func;
+    symbol_table.try_add_symbol("getarray", getarray_attr);
 
     // declare void @putint(i32)      ; 输出一个整数
     auto* putint_type = ir::FunctionType::get(builder->getVoidTy(),
                                               {builder->getInt32Ty()}, false);
     putint_func       = ir::Function::Create(
         putint_type, ir::Function::ExternalLinkage, "putint", *module);
+    SymbolAttr putint_attr;
+    putint_attr.type.function_params = {int_type};
+    putint_attr.type.is_function     = true;
+    putint_attr.type.base_type       = SymbolBaseType::VOID;
+    putint_attr.addr_value           = putint_func;
+    symbol_table.try_add_symbol("putint", putint_attr);
 
     // declare void @putch(i32)       ; 输出一个字符
     auto* putch_type = ir::FunctionType::get(builder->getVoidTy(),
                                              {builder->getInt32Ty()}, false);
     putch_func = ir::Function::Create(putch_type, ir::Function::ExternalLinkage,
                                       "putch", *module);
+    SymbolAttr putch_attr;
+    putch_attr.type.function_params = {int_type};
+    putch_attr.type.is_function     = true;
+    putch_attr.type.base_type       = SymbolBaseType::VOID;
+    putch_attr.addr_value           = putch_func;
+    symbol_table.try_add_symbol("putch", putch_attr);
 
     // declare void @putstr(i8*)       ; 输出字符串
     auto* putstr_type = ir::FunctionType::get(
         builder->getVoidTy(), {builder->getPtrTy(builder->getInt8Ty())}, false);
     putstr_func = ir::Function::Create(
         putstr_type, ir::Function::ExternalLinkage, "putstr", *module);
+
+    // declare void @putarray(i32, i32*)
+    auto* putarray_type = ir::FunctionType::get(
+        builder->getVoidTy(),
+        {builder->getInt32Ty(), builder->getPtrTy(builder->getInt32Ty())},
+        false);
+    auto* putarray_func = ir::Function::Create(
+        putarray_type, ir::Function::ExternalLinkage, "putarray", *module);
+    SymbolAttr putarray_attr;
+    putarray_attr.type.function_params = {int_type, array_type};
+    putarray_attr.type.is_function     = true;
+    putarray_attr.type.base_type       = SymbolBaseType::VOID;
+    putarray_attr.addr_value           = putarray_func;
+    symbol_table.try_add_symbol("putarray", putarray_attr);
 
     // declare init global function
     auto* init_global_func_ty =
