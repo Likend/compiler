@@ -113,8 +113,6 @@ class Visitor {
     std::unique_ptr<ir::IRBuilder> builder =
         std::make_unique<ir::IRBuilder>(*context);
 
-    std::unordered_map<std::string, ir::Value*> symbolTable;
-
     size_t             current_scope    = 1;
     size_t             new_define_scope = 1;
     std::stack<size_t> scope_stack;
