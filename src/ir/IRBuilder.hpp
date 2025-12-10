@@ -138,6 +138,9 @@ class IRBuilder {
     Value* CreateSExt(Value* v, Type* destTy, std::string name) {
         return CreateCast(CastInst::SExt, v, destTy, std::move(name));
     }
+    Value* CreateZExt(Value* v, Type* destTy, std::string name) {
+        return CreateCast(CastInst::ZExt, v, destTy, std::move(name));
+    }
 
     // Instruction - Memory
     AllocaInst* CreateAlloca(Type* ty, Value* arraySize, std::string name) {

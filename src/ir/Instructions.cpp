@@ -88,6 +88,8 @@ CastInst* CastInst::Create(CastOps ops, Value* s, Type* ty, std::string name,
     switch (ops) {
         case SExt:
             return SExtInst::Create(s, ty, std::move(name), parent);
+        case ZExt:
+            return ZExtInst::Create(s, ty, std::move(name), parent);
         default:
             UNREACHABLE();
     }

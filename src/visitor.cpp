@@ -1210,7 +1210,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
 
     auto result1 = invoke_add_exp(*child);
     while (it != node.children.end()) {
-        [[maybe_unused]] const auto& op = std::get<Token>(*it);
+        const auto& op = std::get<Token>(*it);
         ++it;
 
         const auto& child = std::get<NodePtr>(*it);
@@ -1219,7 +1219,7 @@ EvalResult Visitor::invoke_rel_exp(const ASTNode& node) const {
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
 
-        result1.exp = std::make_unique<BinaryOpBoolExp>(
+        result1.exp = std::make_unique<BinaryOpIntExp>(
             op.type, std::move(result1.exp), std::move(result2.exp));
     }
 
@@ -1246,7 +1246,7 @@ EvalResult Visitor::invoke_eq_exp(const ASTNode& node) const {
         ASSERT_CALCABLE(result1.type);
         ASSERT_CALCABLE(result2.type);
 
-        result1.exp = std::make_unique<BinaryOpBoolExp>(
+        result1.exp = std::make_unique<BinaryOpIntExp>(
             op.type, std::move(result1.exp), std::move(result2.exp));
     }
 
@@ -1263,8 +1263,6 @@ std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
     ++it;
 
     auto result1 = invoke_eq_exp(*child);
-    if (result1.exp->type() == Exp::T_INT)
-        result1.exp = std::make_unique<IntToBoolExp>(std::move(result1.exp));
 
     std::unique_ptr<Cond> cond =
         std::make_unique<SingleCond>(std::move(result1.exp));
@@ -1273,11 +1271,7 @@ std::unique_ptr<Cond> Visitor::invoke_land_exp(const ASTNode& node) const {
         const auto& child = std::get<NodePtr>(*it);
         ++it;
         auto result2 = invoke_eq_exp(*child);
-        if (result2.exp->type() == Exp::T_INT)
-            result2.exp =
-                std::make_unique<IntToBoolExp>(std::move(result2.exp));
-
-        auto cond2 = std::make_unique<SingleCond>(std::move(result2.exp));
+        auto cond2   = std::make_unique<SingleCond>(std::move(result2.exp));
         cond = std::make_unique<LAndCond>(std::move(cond), std::move(cond2));
     }
 
