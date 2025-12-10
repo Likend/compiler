@@ -11,7 +11,7 @@
 #include "util/assert.hpp"
 class Exp {
    public:
-    enum Type { T_INT, T_BOOL, T_PTR, T_VOID };
+    enum Type { T_INT, T_PTR, T_VOID };
     virtual ~Exp() = default;
 
     virtual ir::Value* rvalue(ir::IRBuilder& builder) = 0;
@@ -98,7 +98,8 @@ class ArrayAccessExp : public Exp {
 };
 
 class BinaryOpIntExp : public Exp {
-    Token::Type          op;  // one of '+', '-', '*', '/', '%'
+    Token::Type op;  // one of '+', '-', '*', '/', '%',
+                     // '>', '>=', '<', '<=', '==', '!='
     std::unique_ptr<Exp> lhs, rhs;
 
    public:
@@ -114,23 +115,6 @@ class BinaryOpIntExp : public Exp {
     ir::Value*             rvalue(ir::IRBuilder& builder) override;
     std::optional<int32_t> test_constexpr() override;
     Type                   type() override { return T_INT; }
-};
-
-class BinaryOpBoolExp : public Exp {
-    Token::Type          op;  // one of '>', '>=', '<', '<=', '==', '!='
-    std::unique_ptr<Exp> lhs, rhs;
-
-   public:
-    BinaryOpBoolExp(Token::Type op, std::unique_ptr<Exp> lhs,
-                    std::unique_ptr<Exp> rhs)
-        : op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {
-        ASSERT(this->lhs);
-        ASSERT(this->rhs);
-        ASSERT(this->lhs->type() == T_INT);
-        ASSERT(this->rhs->type() == T_INT);
-    }
-    ir::Value* rvalue(ir::IRBuilder& builder) override;
-    Type       type() override { return T_BOOL; }
 };
 
 class UnaryExp : public Exp {
@@ -161,22 +145,6 @@ class PoisonIntVarExp : public Exp {
     Type                   type() override { return T_INT; }
 };
 
-class IntToBoolExp : public Exp {
-   private:
-    std::unique_ptr<Exp> int_exp;
-
-   public:
-    IntToBoolExp(std::unique_ptr<Exp> int_exp) : int_exp(std::move(int_exp)) {
-        ASSERT(this->int_exp);
-        ASSERT(this->int_exp->type() == T_INT);
-    }
-    ir::Value* rvalue(ir::IRBuilder& builder) override {
-        return builder.CreateICmpNE(int_exp->rvalue(builder),
-                                    builder.getInt32(0), "tobool");
-    }
-    Type type() override { return T_BOOL; }
-};
-
 class Cond {
    public:
     virtual ~Cond() = default;
@@ -192,7 +160,7 @@ class SingleCond : public Cond {
    public:
     SingleCond(std::unique_ptr<Exp> exp) : exp(std::move(exp)) {
         ASSERT(this->exp);
-        ASSERT(this->exp->type() == Exp::T_BOOL);
+        ASSERT(this->exp->type() == Exp::T_INT);
     }
     void gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
                   ir::IRBuilder& builder) override;

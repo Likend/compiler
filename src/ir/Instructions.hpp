@@ -330,7 +330,10 @@ class BranchInst final : public Instruction {
 
 class CastInst : public UnaryInstruction {
    public:
-    enum CastOps { SExt = 40 };
+    enum CastOps {
+        SExt = 40,
+        ZExt = 41,
+    };
 
    private:
     CastOps ops;
@@ -364,5 +367,18 @@ class SExtInst final : public CastInst {
     }
 
     std::string_view getOpcodeName() const override { return "sext"; }
+};
+
+class ZExtInst final : public CastInst {
+    ZExtInst(Value* s, Type* ty, std::string name, BasicBlock* parent)
+        : CastInst(CastInst::SExt, s, ty, std::move(name), parent) {}
+
+   public:
+    static ZExtInst* Create(Value* s, Type* ty, std::string name,
+                            BasicBlock* parent) {
+        return new ZExtInst{s, ty, std::move(name), parent};
+    }
+
+    std::string_view getOpcodeName() const override { return "zext"; }
 };
 }  // namespace ir

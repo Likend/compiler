@@ -125,16 +125,41 @@ ir::Value* BinaryOpIntExp::rvalue(ir::IRBuilder& builder) {
     ir::Value* r = rhs->rvalue(builder);
 
     switch (op) {
-        case Token::Type::PLUS:
+        case Token::Type::PLUS:  // +
             return builder.CreateNSWAdd(l, r, "add");
-        case Token::Type::MINU:
+        case Token::Type::MINU:  // -
             return builder.CreateNSWSub(l, r, "sub");
-        case Token::Type::MULT:
+        case Token::Type::MULT:  // *
             return builder.CreateNSWMul(l, r, "mul");
-        case Token::Type::DIV:
+        case Token::Type::DIV:  // /
             return builder.CreateSDiv(l, r, "div");
-        case Token::Type::MOD:
+        case Token::Type::MOD: {  // %
             return builder.CreateSRem(l, r, "mod");
+        }
+        case Token::Type::LSS: {  // <
+            auto* v = builder.CreateICmpSLT(l, r, "slt");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
+        case Token::Type::LEQ: {  // <=
+            auto* v = builder.CreateICmpSLE(l, r, "sle");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
+        case Token::Type::GRE: {  // >
+            auto* v = builder.CreateICmpSGT(l, r, "sgt");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
+        case Token::Type::GEQ: {  // >=
+            auto* v = builder.CreateICmpSGE(l, r, "sge");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
+        case Token::Type::EQL: {  // ==
+            auto* v = builder.CreateICmpEQ(l, r, "eq");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
+        case Token::Type::NEQ: {  // !=
+            auto* v = builder.CreateICmpNE(l, r, "ne");
+            return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
+        }
         default:
             UNREACHABLE();
     }
@@ -144,47 +169,33 @@ std::optional<int32_t> BinaryOpIntExp::test_constexpr() {
     if (auto lval = lhs->test_constexpr(), rval = rhs->test_constexpr();
         lval && rval) {
         switch (op) {
-            case Token::Type::PLUS:
+            case Token::Type::PLUS:  // +
                 return *lval + *rval;
-            case Token::Type::MINU:
+            case Token::Type::MINU:  // -
                 return *lval - *rval;
-            case Token::Type::MULT:
+            case Token::Type::MULT:  // *
                 return *lval * *rval;
-            case Token::Type::DIV:
+            case Token::Type::DIV:  // /
                 return *lval / *rval;
-            case Token::Type::MOD:
+            case Token::Type::MOD:  // %
                 return *lval % *rval;
+            case Token::Type::LSS:  // <
+                return *lval < *rval;
+            case Token::Type::LEQ:  // <=
+                return *lval <= *rval;
+            case Token::Type::GRE:  // >
+                return *lval > *rval;
+            case Token::Type::GEQ:  // >=
+                return *lval >= *rval;
+            case Token::Type::EQL:  // ==
+                return *lval == *rval;
+            case Token::Type::NEQ:  // !=
+                return *lval != *rval;
             default:
                 UNREACHABLE();
         }
     }
     return std::nullopt;
-}
-
-ir::Value* BinaryOpBoolExp::rvalue(ir::IRBuilder& builder) {
-    if (auto val = test_constexpr()) {
-        return builder.getInt32(*val);
-    }
-
-    ir::Value* l = lhs->rvalue(builder);
-    ir::Value* r = rhs->rvalue(builder);
-
-    switch (op) {
-        case Token::Type::LSS:  // <
-            return builder.CreateICmpSLT(l, r, "slt");
-        case Token::Type::LEQ:  // <=
-            return builder.CreateICmpSLE(l, r, "sle");
-        case Token::Type::GRE:  // >
-            return builder.CreateICmpSGT(l, r, "sgt");
-        case Token::Type::GEQ:  // >=
-            return builder.CreateICmpSGE(l, r, "sge");
-        case Token::Type::EQL:  // ==
-            return builder.CreateICmpEQ(l, r, "icmpeq");
-        case Token::Type::NEQ:  // !=
-            return builder.CreateICmpNE(l, r, "icmpne");
-        default:
-            UNREACHABLE();
-    }
 }
 
 ir::Value* UnaryExp::rvalue(ir::IRBuilder& builder) {
@@ -200,7 +211,7 @@ ir::Value* UnaryExp::rvalue(ir::IRBuilder& builder) {
             return builder.CreateNSWNeg(val, "neg");
         case Token::Type::NOT:
             val = builder.CreateICmpEQ(val, builder.getInt32(0), "cmp0");
-            return builder.CreateSExt(val, builder.getInt32Ty(), "ext");
+            return builder.CreateZExt(val, builder.getInt32Ty(), "ext");
         default:
             UNREACHABLE();
     }
@@ -225,7 +236,9 @@ std::optional<int32_t> UnaryExp::test_constexpr() {
 // Conditions
 void SingleCond::gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
                           ir::IRBuilder& builder) {
-    auto* llvm_value = exp->rvalue(builder);
+    ir::Value* llvm_value = exp->rvalue(builder);
+    llvm_value =
+        builder.CreateICmpNE(llvm_value, builder.getInt32(0), "tobool");
     builder.CreateCondBr(llvm_value, true_bb, false_bb);
 }
 
