@@ -10,6 +10,8 @@
 
 #include "lexer.hpp"
 #include "token.hpp"
+#include "util/iterator_range.hpp"
+#include "util/iterator_transform.hpp"
 #include "util/lambda_overload.hpp"
 #include "util/scope_hash_set.hpp"
 
@@ -130,69 +132,36 @@ struct ASTNode {
                 return nullptr;
         }
 
-        struct TokenEqualRange {
-            SetType::EqualRange<ElementKey> inner_range;
-            struct Iterator {
-                SetType::EqualRange<ElementKey>::iterator inner_it;
-
-                const Token& operator*() const {
-                    return std::get<Token>(*inner_it);
-                }
-                Iterator& operator++() {
-                    ++inner_it;
-                    return *this;
-                }
-                Iterator operator++(int) {
-                    auto temp = *this;
-                    ++(*this);
-                    return temp;
-                }
-                bool operator==(const Iterator& other) const noexcept {
-                    return inner_it == other.inner_it;
-                }
-                bool operator!=(const Iterator& other) const noexcept {
-                    return !this->operator==(other);
-                }
-            };
-
-            Iterator begin() const { return {inner_range.begin()}; }
-            Iterator end() const { return {inner_range.end()}; }
+        struct token_iterator
+            : iterator_transform<token_iterator,
+                                 SetType::EqualRange<ElementKey>::iterator,
+                                 const Token> {
+            const Token& transform(
+                const std::variant<std::unique_ptr<ASTNode>, Token>& it) const {
+                return std::get<Token>(it);
+            }
         };
 
-        struct ASTNodeEqualRange {
-            SetType::EqualRange<ElementKey> inner_range;
-            struct Iterator {
-                SetType::EqualRange<ElementKey>::iterator inner_it;
-
-                const ASTNode& operator*() const {
-                    return *std::get<std::unique_ptr<ASTNode>>(*inner_it);
-                }
-                Iterator& operator++() {
-                    ++inner_it;
-                    return *this;
-                }
-                Iterator operator++(int) {
-                    auto temp = *this;
-                    ++(*this);
-                    return temp;
-                }
-                bool operator==(const Iterator& other) const noexcept {
-                    return inner_it == other.inner_it;
-                }
-                bool operator!=(const Iterator& other) const noexcept {
-                    return !this->operator==(other);
-                }
-            };
-
-            Iterator begin() const { return {inner_range.begin()}; }
-            Iterator end() const { return {inner_range.end()}; }
+        struct astnode_iterator
+            : iterator_transform<astnode_iterator,
+                                 SetType::EqualRange<ElementKey>::iterator,
+                                 const ASTNode> {
+            const ASTNode& transform(
+                const std::variant<std::unique_ptr<ASTNode>, Token>& it) const {
+                return *std::get<std::unique_ptr<ASTNode>>(it);
+            }
         };
 
-        TokenEqualRange equal_range(Token::Type type) const {
-            return {set.equal_range(ElementKey{type})};
+        using token_range   = iterator_range<token_iterator>;
+        using astnode_range = iterator_range<astnode_iterator>;
+
+        token_range equal_range(Token::Type type) const {
+            auto rg = set.equal_range(ElementKey{type});
+            return {{rg.begin()}, {rg.end()}};
         }
-        ASTNodeEqualRange equal_range(ASTNode::Type type) const {
-            return {set.equal_range(ElementKey{type})};
+        astnode_range equal_range(ASTNode::Type type) const {
+            auto rg = set.equal_range(ElementKey{type});
+            return {{rg.begin()}, {rg.end()}};
         }
     };
 

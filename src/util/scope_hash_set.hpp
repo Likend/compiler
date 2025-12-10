@@ -1,8 +1,12 @@
 #pragma once
 #include <cassert>
+#include <cstddef>
 #include <functional>
+#include <iterator>
 #include <utility>
 #include <vector>
+
+#include "util/iterator_range.hpp"
 
 template <typename Value, typename Hash = std::hash<Value>,
           typename Pred = std::equal_to<Value>, bool insert_back = false>
@@ -132,45 +136,23 @@ class ScopeHashSet {
         tail         = scope_start;
     }
 
-    // struct iterator {
-    //    private:
-    //     Node** node;
-    //     friend class ScopeHashSet;
-
-    //     iterator(Node** node) noexcept : node(node) {}
-
-    //    public:
-    //     const Value& operator*() const noexcept { return (*node)->value; }
-    //     iterator& operator++() noexcept {
-    //         node = &((*node)->scope_next);
-    //         return *this;
-    //     }
-    //     iterator operator++(int) noexcept {
-    //         auto temp = *this;
-    //         ++(*this);
-    //         return temp;
-    //     }
-    //     bool operator==(const iterator& other) const {
-    //         return node == other.node;
-    //     };
-    //     bool operator!=(const iterator& other) const {
-    //         return !this->operator==(other);
-    //     };
-    // };
-
-    // iterator begin() { return iterator{head}; }
-    // iterator end() { return iterator{tail}; }
-
     struct iterator {
-       protected:
+       private:
         const Node* node;
         friend class ScopeHashSet;
 
         iterator(Node* node) noexcept : node(node) {}
 
        public:
-        const Value& operator*() const noexcept { return node->value; }
-        iterator&    operator++() noexcept {
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = std::ptrdiff_t;
+        using value_type        = const Value;
+        using pointer           = const Value*;
+        using reference         = const Value&;
+
+        reference operator*() const noexcept { return node->value; }
+        pointer   operator->() const noexcept { return &node->value; }
+        iterator& operator++() noexcept {
             node = node->scope_next;
             return *this;
         }
@@ -198,57 +180,52 @@ class ScopeHashSet {
     }
 
     template <typename SearchKey>
-    class EqualRange {
+    struct equal_iterator {
        private:
-        Node*           node;
-        const Pred&     pred;
-        const SearchKey key;
-
-        EqualRange(Node* node, const Pred& pred, const SearchKey& key)
-            : node(node), pred(pred), key(key) {}
+        Node*            node;
+        const Pred&      pred;
+        const SearchKey& key;
         friend class ScopeHashSet;
 
+        equal_iterator(Node* node, const Pred& pred, const SearchKey& key)
+            : node(node), pred(pred), key(key) {}
+
        public:
-        struct iterator {
-           private:
-            Node*            node;
-            const Pred&      pred;
-            const SearchKey& key;
-            friend class EqualRange;
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type   = std::ptrdiff_t;
+        using value_type        = const Value;
+        using pointer           = const Value*;
+        using reference         = const Value&;
 
-            iterator(Node* node, const Pred& pred, const SearchKey& key)
-                : node(node), pred(pred), key(key) {}
-
-           public:
-            const Value& operator*() const noexcept { return node->value; }
-            iterator&    operator++() {
-                do {
-                    node = node->hash_next;
-                } while (node != nullptr && !pred(node->value, key));
-                return *this;
-            }
-            iterator operator++(int) noexcept {
-                auto temp = *this;
-                ++(*this);
-                return temp;
-            }
-            bool operator==(const iterator& other) const noexcept {
-                return node == other.node;
-            }
-            bool operator!=(const iterator& other) const noexcept {
-                return !this->operator==(other);
-            }
-        };
-
-        iterator begin() const noexcept { return {node, pred, key}; }
-        iterator end() const noexcept { return {nullptr, pred, key}; }
+        reference       operator*() const noexcept { return node->value; }
+        pointer         operator->() const noexcept { return &node->value; }
+        equal_iterator& operator++() {
+            do {
+                node = node->hash_next;
+            } while (node != nullptr && !pred(node->value, key));
+            return *this;
+        }
+        equal_iterator operator++(int) noexcept {
+            auto temp = *this;
+            ++(*this);
+            return temp;
+        }
+        bool operator==(const equal_iterator& other) const noexcept {
+            return node == other.node;
+        }
+        bool operator!=(const equal_iterator& other) const noexcept {
+            return !this->operator==(other);
+        }
     };
+
+    template <typename SearchKey>
+    using EqualRange = iterator_range<equal_iterator<SearchKey>>;
 
     template <typename SearchKey>
     EqualRange<SearchKey> equal_range(const SearchKey& key) const {
         size_t bucket_index = hash(key) % bucket_count();
         Node*  node         = search_in_bucket(bucket_index, key);
-        return EqualRange<SearchKey>{node, pred, key};
+        return {{node, pred, key}, {nullptr, pred, key}};
     }
 
    private:

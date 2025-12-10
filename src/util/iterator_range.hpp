@@ -7,6 +7,7 @@ class iterator_range {
     IteratorT begin_it, end_it;
 
    public:
+    using iterator = IteratorT;
     iterator_range(IteratorT begin_it, IteratorT end_it)
         : begin_it(std::move(begin_it)), end_it(std::move(end_it)) {}
 
