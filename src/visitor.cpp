@@ -260,7 +260,7 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
         builder->SetInsertPoint(init_global_bb);
 
         if (is_array) {
-            if (has_initializer) {
+            if (has_initializer && init_evals.size() != 0) {
                 std::vector<ir::Constant*> array_const_elem(array_count,
                                                             const_zero);
 
@@ -309,38 +309,42 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
 
         builder->SetInsertPoint(current_bb);
     } else {
-        if (is_array) {
-            for (size_t i = 0; i < static_cast<size_t>(array_count); i++) {
-                std::vector<ir::Value*> index = {builder->getInt32(0),
-                                                 builder->getInt32(i)};
+        if (has_initializer) {
+            if (is_array) {
+                for (size_t i = 0; i < static_cast<size_t>(array_count); i++) {
+                    std::vector<ir::Value*> index = {builder->getInt32(0),
+                                                     builder->getInt32(i)};
 
-                ir::Value* ptr_to_elem = builder->CreateGEP(
-                    alloc_ptr, index, "ptr.arr." + std::to_string(i));
-                if (i < init_evals.size()) {
-                    if (auto const_int = init_evals[i].exp->test_constexpr()) {
+                    ir::Value* ptr_to_elem = builder->CreateGEP(
+                        alloc_ptr, index, "ptr.arr." + std::to_string(i));
+                    if (i < init_evals.size()) {
+                        if (auto const_int =
+                                init_evals[i].exp->test_constexpr()) {
+                            builder->CreateStore(builder->getInt32(*const_int),
+                                                 ptr_to_elem);
+                            if (const_flag) const_values.push_back(*const_int);
+                        } else {
+                            ASSERT(!const_flag);
+                            builder->CreateStore(
+                                init_evals[i].exp->rvalue(*builder),
+                                ptr_to_elem);
+                        }
+                    } else {
+                        builder->CreateStore(builder->getInt32(0), ptr_to_elem);
+                    }
+                }
+            } else {
+                if (!init_evals.empty()) {
+                    ASSERT(init_evals.size() == 1);
+                    if (auto const_int = init_evals[0].exp->test_constexpr()) {
                         builder->CreateStore(builder->getInt32(*const_int),
-                                             ptr_to_elem);
+                                             alloc_ptr);
                         if (const_flag) const_values.push_back(*const_int);
                     } else {
                         ASSERT(!const_flag);
                         builder->CreateStore(
-                            init_evals[i].exp->rvalue(*builder), ptr_to_elem);
+                            init_evals[0].exp->rvalue(*builder), alloc_ptr);
                     }
-                } else {
-                    builder->CreateStore(builder->getInt32(0), ptr_to_elem);
-                }
-            }
-        } else {
-            if (!init_evals.empty()) {
-                ASSERT(init_evals.size() == 1);
-                if (auto const_int = init_evals[0].exp->test_constexpr()) {
-                    builder->CreateStore(builder->getInt32(*const_int),
-                                         alloc_ptr);
-                    if (const_flag) const_values.push_back(*const_int);
-                } else {
-                    ASSERT(!const_flag);
-                    builder->CreateStore(init_evals[0].exp->rvalue(*builder),
-                                         alloc_ptr);
                 }
             }
         }
