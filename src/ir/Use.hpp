@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ir/Value.hpp"
-
 namespace ir {
+class User;
+class Value;
 class Use {
    private:
     Use(User* parent, Value* val = nullptr) : val(val), parent(parent) {}
@@ -18,6 +18,8 @@ class Use {
         if (this != &rhs) set(rhs.val);
         return *this;
     }
+
+    Use* getNext() const { return next; }
 
    private:
     friend class User;

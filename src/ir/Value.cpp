@@ -15,7 +15,7 @@ void Value::addUse(Use& use) { use.addToList(&useList); }
 
 LLVMContext& Value::getContext() const { return ty->getContext(); }
 
-ValueSymbolTable* getSymTab(Value* V) {
+static ValueSymbolTable* getSymTab(Value* V) {
     if (auto* I = dynamic_cast<Instruction*>(V)) {
         if (BasicBlock* P = I->getParent())
             if (Function* PP = P->getParent())

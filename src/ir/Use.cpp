@@ -1,5 +1,7 @@
 #include "ir/Use.hpp"
 
+#include "ir/Value.hpp"
+
 using namespace ir;
 
 void Use::set(Value* val) {
