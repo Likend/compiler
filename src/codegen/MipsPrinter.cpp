@@ -98,6 +98,29 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
                       "    li $v0, 5\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
+            } else if (f.getName() == "getchar") {
+                os << "getchar:\n"
+                      "    li $v0, 12\n"
+                      "    syscall\n"
+                      "    jr $ra\n\n";
+            } else if (f.getName() == "putint") {
+                os << "putint:\n"
+                      "    lw $a0, 0($sp)\n"
+                      "    li $v0, 1\n"
+                      "    syscall\n"
+                      "    jr $ra\n\n";
+            } else if (f.getName() == "putch") {
+                os << "putch:\n"
+                      "    lw $a0, 0($sp)\n"
+                      "    li $v0, 11\n"
+                      "    syscall\n"
+                      "    jr $ra\n\n";
+            } else if (f.getName() == "putstr") {
+                os << "putstr:\n"
+                      "    lw $a0, 0($sp)\n"
+                      "    li $v0, 4\n"
+                      "    syscall\n"
+                      "    jr $ra\n\n";
             }
         } else {
             MachineFunction* mf = module.getMachineFunction(f);
@@ -107,22 +130,40 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
     }
 }
 
+void printEscapedString(std::string_view str, std::ostream& os) {
+    for (char c : str) {
+        switch (c) {
+            case '\n':
+                os << "\\n";
+                break;
+            case '\0':
+                os << "\\0";
+                break;
+            default:
+                os << c;
+        }
+    }
+}
+
 void MipsPrinterPass::printGlobalVariable(ir::GlobalVariable& gv) {
     os << gv.getName() << ":\n";
-    os << "    ";
+    std::string_view indend = "    ";
+    os << indend;
     ir::Constant* initializer = gv.getInitializer();
     ASSERT(initializer);
     if (auto* ci = dynamic_cast<ir::ConstantInt*>(initializer)) {
         os << ".word " << ci->getValue();
     } else if (auto* cs = dynamic_cast<ir::ConstantString*>(initializer)) {
-        os << "# " << cs->getAsString();
+        os << ".ascii \"";
+        printEscapedString(cs->getAsString(), os);
+        os << '"';
     } else if (auto* ca = dynamic_cast<ir::ConstantArray*>(initializer)) {
         Delimeter dlie(", ");
         for (auto& op : ca->operands()) {
             os << ".word ";
             auto* i = dynamic_cast<ir::ConstantInt*>(op.get());
             ASSERT(i);
-            os << i->getValue();
+            os << i->getValue() << '\n' << indend;
         }
     } else if (dynamic_cast<ir::ConstantAggregateZero*>(initializer)) {
         ASSERT(gv.getValueType()->isArrayTy());
@@ -218,7 +259,7 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
             os << "addi " << Binary{instr};
             break;
         case DESC_MULTI.opcode:
-            os << "mult " << Binary{instr};
+            os << "mul " << Binary{instr};
             break;
 
         case DESC_RET.opcode:
