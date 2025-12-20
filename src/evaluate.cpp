@@ -41,6 +41,7 @@ ir::Value* PtrVarExp::rvalue([[maybe_unused]] ir::IRBuilder& builder) {
 ir::Value* FuncCallExp::rvalue(ir::IRBuilder& builder) {
     auto* function_value =
         dynamic_cast<ir::Function*>(func_symbol.attr.addr_value);
+    ASSERT(function_value);
     // return void 函数不能有 name
     std::string call_name;
     if (type() != T_VOID) {

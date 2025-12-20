@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <ostream>
 #include <vector>
 
 #include "util/assert.hpp"
@@ -122,6 +121,4 @@ class PointerType : public Type {
     static PointerType* get(LLVMContext& c,
                             unsigned     addrSpace);  // addrSpace is unused
 };
-
-std::ostream& operator<<(std::ostream& os, const Type* type);
 }  // namespace ir

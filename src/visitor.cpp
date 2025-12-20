@@ -311,9 +311,9 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                     std::vector<ir::Value*> index = {builder->getInt32(0),
                                                      builder->getInt32(i)};
 
-                    ir::Value* ptr_to_elem =
-                        builder->CreateGEP(alloc_type, alloc_ptr, index,
-                                           "ptr.arr." + std::to_string(i));
+                    ir::Value* ptr_to_elem = builder->CreateGEP(
+                        alloc_type, alloc_ptr, index,
+                        "ptr.arr." + std::to_string(i));  // TODO 给成一维的
                     if (i < init_evals.size()) {
                         if (auto const_int =
                                 init_evals[i].exp->test_constexpr()) {

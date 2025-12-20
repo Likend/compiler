@@ -1,23 +1,19 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <stack>
-#include <string>
 #include <string_view>
 #include <tuple>
 
+#include "evaluate.hpp"
+#include "grammer.hpp"
 #include "ir/BasicBlock.hpp"
 #include "ir/Function.hpp"
 #include "ir/IRBuilder.hpp"
 #include "ir/LLVMContext.hpp"
 #include "ir/Module.hpp"
-#include "ir/Value.hpp"
-// #include <llvm/Support/raw_ostream.h>
-
-#include "evaluate.hpp"
-#include "grammer.hpp"
+#include "ir/Pass.hpp"
 #include "symbol_table.hpp"
 #include "token.hpp"
 
@@ -53,7 +49,7 @@ class Visitor {
     // void operator()(const ASTNode& node);
     std::vector<SymbolRecord> records;
 
-    void write_ir(std::ostream& os) { os << module.get(); }
+    void runPass(ir::PassManager& manager) { manager.run(*module); }
 
    private:
     void invoke_comp_unit(const ASTNode& node);

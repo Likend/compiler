@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <ostream>
 #include <vector>
 
 #include "ir/GlobalValue.hpp"
@@ -135,6 +134,4 @@ class Argument final : public Value {
     Function* getParent() const { return parent; }
     unsigned  getArgNo() const { return argNo; }
 };
-
-std::ostream& operator<<(std::ostream&, const Function*);
 }  // namespace ir

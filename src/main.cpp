@@ -5,6 +5,18 @@
 #include <optional>
 #include <string>
 
+#include "codegen/FillFrame.hpp"
+#include "codegen/IRTranslator.hpp"
+#include "codegen/LinerScanRegisterAlloc.hpp"
+#include "codegen/MachineModule.hpp"
+#include "codegen/MipsPrinter.hpp"
+#include "codegen/MIRPrinter.hpp"
+#include "codegen/Register.hpp"
+#include "codegen/ReplaceRegister.hpp"
+#include "ir/IRWriter.hpp"
+#include "ir/Pass.hpp"
+#include "util/assert.hpp"
+
 #ifndef DEBUG_TOKEN_TYPE_NAME
 #define DEBUG_TOKEN_TYPE_NAME
 #endif
@@ -64,6 +76,9 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
 }
 
 int main() {
+    using namespace ir;
+    using namespace codegen;
+
     if (std::optional<std::string> src = read_file()) {
         Lexer lexer{*src};
         auto  it  = lexer.begin();
@@ -74,10 +89,31 @@ int main() {
         if (ast) {
             print_ast(*ast);
 
-            Visitor       visitor{*ast};
-            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
-            if (ir_file) visitor.write_ir(ir_file);
+            Visitor visitor{*ast};
             print_symbol_record(visitor.records);
+
+            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
+            ASSERT_WITH(ir_file, "File llvm_ir.txt not found.");
+            std::ofstream mir_file{"mir.txt", std::ios_base::out};
+            ASSERT_WITH(mir_file, "File mir.txt not found.");
+            std::ofstream   mir1_file{"mir1.txt", std::ios_base::out};
+            std::ofstream   mips_file{"mips.txt", std::ios_base::out};
+            ir::PassManager pm{
+                new IRWriterPass{ir_file},
+                new MachineModuleAnalysisPass{},
+                new IRTranslator{},
+                new MIRPrinterPass{mir_file},
+                new LinerScanRegisterAllocPass{REG_T0, REG_T1, REG_T2, REG_T3,
+                                               REG_T4, REG_T5, REG_T6, REG_T7,
+                                               REG_S0, REG_S1, REG_S2, REG_S3,
+                                               REG_S4, REG_S5, REG_S6, REG_S7},
+                // new LinerScanRegisterAllocPass{REG_T0, REG_T1},
+                new ReplaceRegisterPass{REG_T8, REG_T9},
+                new MIRPrinterPass{mir1_file},
+                new FillFramePass{},
+                new MipsPrinterPass{mips_file},
+            };
+            visitor.runPass(pm);
         }
         print_error_infos();
 

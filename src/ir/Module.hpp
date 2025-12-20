@@ -1,6 +1,5 @@
 #pragma once
 #include <memory>
-#include <ostream>
 #include <string_view>
 
 #include "ir/Constants.hpp"
@@ -53,15 +52,15 @@ class Module {
         }
     };
 
+    using global_range       = iterator_range<global_iterator>;
+    using const_global_range = iterator_range<const_global_iterator>;
+
     global_iterator       global_begin() { return {globalList.begin()}; }
     const_global_iterator global_begin() const { return {globalList.begin()}; }
     global_iterator       global_end() { return {globalList.end()}; }
     const_global_iterator global_end() const { return {globalList.end()}; }
-
-    iterator_range<global_iterator> globals() {
-        return {global_begin(), global_end()};
-    }
-    iterator_range<const_global_iterator> globals() const {
+    global_range          globals() { return {global_begin(), global_end()}; }
+    const_global_range    globals() const {
         return {global_begin(), global_end()};
     }
 
@@ -85,12 +84,5 @@ class Module {
     const_iterator begin() const { return functionList.begin(); }
     iterator       end() { return {functionList.end()}; }
     const_iterator end() const { return {functionList.end()}; }
-
-    iterator_range<iterator>       functions() { return {begin(), end()}; }
-    iterator_range<const_iterator> functions() const {
-        return {begin(), end()};
-    }
 };
-
-std::ostream& operator<<(std::ostream&, const Module*);
 }  // namespace ir

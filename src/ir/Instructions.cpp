@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "ir/BasicBlock.hpp"
+#include "ir/Function.hpp"
 #include "ir/Type.hpp"
 
 using namespace ir;
@@ -37,8 +38,8 @@ Type* GetElementPtrInst::getTypeAtIndex(Type* type, Value* idx) {
     return nullptr;
 }
 
-Type* GetElementPtrInst::getIndexedType(Type*                     pointeeType,
-                                        const std::vector<Value*> idxList) {
+Type* GetElementPtrInst::getIndexedType(Type*                      pointeeType,
+                                        const std::vector<Value*>& idxList) {
     if (idxList.empty()) return pointeeType;
     for (auto it = idxList.begin() + 1; it != idxList.end(); ++it) {
         Value* v    = *it;

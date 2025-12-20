@@ -1,3 +1,5 @@
+#include "ir/IRWriter.hpp"
+
 #include <iomanip>
 #include <ios>
 #include <ostream>
@@ -12,8 +14,12 @@
 #include "ir/Type.hpp"
 #include "ir/Value.hpp"
 #include "util/assert.hpp"
+#include "util/Delimeter.hpp"
 
 using namespace ir;
+
+static std::ostream& operator<<(std::ostream& os, const Module* module);
+static std::ostream& operator<<(std::ostream& os, const Type* type);
 
 enum PrefixType {
     GlobalPrefix,
@@ -91,22 +97,6 @@ static PrefixType getNamePrefix(const Value* val) {
         return LocalPrefix;
 }
 
-class Delimeter {
-    std::string_view deli;
-    bool             isFirstTime = true;
-
-   public:
-    Delimeter(std::string_view deli) : deli(deli) {}
-
-    std::string_view operator()() {
-        if (isFirstTime) {
-            isFirstTime = false;
-            return "";
-        } else
-            return deli;
-    }
-};
-
 class Printer {
     std::ostream& os;
 
@@ -129,7 +119,7 @@ class Printer {
         os << '\n';
         os << bb->getName() << ":\n";
         // print pred comment
-        for (const auto& instruction : *bb) {
+        for (const Instruction& instruction : *bb) {
             printInstruction(&instruction);
             os << '\n';
         }
@@ -314,7 +304,7 @@ class Printer {
             printGlobal(&gv);
             os << '\n';
         }
-        for (const Function& func : module->functions()) {
+        for (const Function& func : *module) {
             printFunction(&func);
             os << '\n';
         }
@@ -334,21 +324,21 @@ class Printer {
 };
 
 // print module
-std::ostream& ir::operator<<(std::ostream& os, const Module* module) {
+static std::ostream& operator<<(std::ostream& os, const Module* module) {
     Printer printer{os};
     printer.printModule(module);
     return os;
 }
 
 // print function
-std::ostream& ir::operator<<(std::ostream& os, const Function* function) {
-    Printer printer{os};
-    printer.printFunction(function);
-    return os;
-}
+// static std::ostream& operator<<(std::ostream& os, const Function* function) {
+//     Printer printer{os};
+//     printer.printFunction(function);
+//     return os;
+// }
 
 // print type
-std::ostream& ir::operator<<(std::ostream& os, const Type* type) {
+static std::ostream& operator<<(std::ostream& os, const Type* type) {
     switch (type->getTypeID()) {
         case Type::VoidTyID:
             os << "void";
@@ -382,4 +372,8 @@ std::ostream& ir::operator<<(std::ostream& os, const Type* type) {
             UNREACHABLE();
     }
     return os;
+}
+
+void IRWriterPass::doInitialization(Module& module) {
+    os << &module << std::endl;
 }

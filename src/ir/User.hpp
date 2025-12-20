@@ -10,7 +10,6 @@
 namespace ir {
 class User : public Value {
    protected:
-    // 操作数的容器 (在真正的 LLVM 中，Use 是紧密排列在 User 内存之前的)
     std::vector<Use> operandList;
 
    public:

@@ -196,8 +196,8 @@ class GetElementPtrInst final : public Instruction {
 
     std::string_view getOpcodeName() const override { return "getelementptr"; }
 
-    static Type* getIndexedType(Type*                     pointeeType,
-                                const std::vector<Value*> idxList);
+    static Type* getIndexedType(Type*                      pointeeType,
+                                const std::vector<Value*>& idxList);
     static Type* getTypeAtIndex(Type* pointeeType, Value* idx);
 };
 
@@ -377,7 +377,7 @@ class SExtInst final : public CastInst {
 
 class ZExtInst final : public CastInst {
     ZExtInst(Value* s, Type* ty, std::string name, BasicBlock* parent)
-        : CastInst(CastInst::SExt, s, ty, std::move(name), parent) {}
+        : CastInst(CastInst::ZExt, s, ty, std::move(name), parent) {}
 
    public:
     static ZExtInst* Create(Value* s, Type* ty, std::string name,
