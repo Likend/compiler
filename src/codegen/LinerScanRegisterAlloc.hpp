@@ -1,6 +1,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>

@@ -9,9 +9,11 @@ class Register {
     enum RegisterType { PhysicalRegister = 0, StackRegister, VirtualRegister };
 
    private:
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wnested-anon-types"
-#pragma GCC diagnostic ignored "-Wgnu-anonymous-struct"
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
+#endif
     union {
         struct {
             RegisterType type : 2;
@@ -19,7 +21,9 @@ class Register {
         };
         uint32_t val : 32;
     };
-#pragma GCC diagnostic pop
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
    public:
     constexpr Register(uint32_t val = 0) : val(val) {}
