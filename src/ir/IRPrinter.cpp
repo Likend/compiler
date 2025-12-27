@@ -1,4 +1,4 @@
-#include "ir/IRWriter.hpp"
+#include "ir/IRPrinter.hpp"
 
 #include <iomanip>
 #include <ios>
@@ -374,6 +374,6 @@ static std::ostream& operator<<(std::ostream& os, const Type* type) {
     return os;
 }
 
-void IRWriterPass::doInitialization(Module& module) {
+void IRPrinterPass::doInitialization(Module& module) {
     os << &module << std::endl;
 }

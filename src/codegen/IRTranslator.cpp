@@ -75,152 +75,166 @@ void IRTranslator::translateBasicBlock(const ir::BasicBlock* bb) {
 
 void IRTranslator::translateInstruction(const ir::Instruction* instr) {
     if (const auto* i = dynamic_cast<const ir::BinaryOperator*>(instr)) {
-        const MachineInstrDesc* desc;
-        switch (i->getBinaryOps()) {
-            case ir::BinaryOperator::Add:
-                desc = &DESC_ADD;
-                break;
-            case ir::BinaryOperator::Sub:
-                desc = &DESC_SUB;
-                break;
-            case ir::BinaryOperator::Mul:
-                desc = &DESC_MUL;
-                break;
-            case ir::BinaryOperator::SDiv:
-                desc = &DESC_SDIV;
-                break;
-            case ir::BinaryOperator::SRem:
-                desc = &DESC_SREM;
-                break;
-            case ir::BinaryOperator::Xor:
-                desc = &DESC_XOR;
-                break;
-            default:
-                UNREACHABLE();
-        }
-        Register lhs = prepareReg(i->getLHS());
-        Register rhs = prepareReg(i->getRHS());
-        currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+        translateBinaryOperator(i);
     } else if (const auto* i = dynamic_cast<const ir::ICmpInst*>(instr)) {
-        const MachineInstrDesc* desc;
-        switch (i->getPredicate()) {
-            case ir::CmpInst::ICMP_EQ:
-                desc = &DESC_SEQ;
-                break;
-            case ir::CmpInst::ICMP_NE:
-                desc = &DESC_SNE;
-                break;
-            case ir::CmpInst::ICMP_SGT:
-                desc = &DESC_SGT;
-                break;
-            case ir::CmpInst::ICMP_SGE:
-                desc = &DESC_SGE;
-                break;
-            case ir::CmpInst::ICMP_SLT:
-                desc = &DESC_SLT;
-                break;
-            case ir::CmpInst::ICMP_SLE:
-                desc = &DESC_SLE;
-                break;
-        }
-        Register lhs = prepareReg(i->getLHS());
-        Register rhs = prepareReg(i->getRHS());
-        currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+        translateICmpInst(i);
     } else if (const auto* i = dynamic_cast<const ir::AllocaInst*>(instr)) {
-        auto stackID = static_cast<int64_t>(currentFunction->CreateStackObject(
-            dl.getTypeSizeInBits(i->getAllocatedType()), i));
-        currentBB->emplace(DESC_FRAME, CreateVReg(i), ImmediateOpKind{stackID});
+        translateAllocaInst(i);
     } else if (const auto* i = dynamic_cast<const ir::LoadInst*>(instr)) {
-        Register ptr = prepareReg(i->getPointerOperand());
-        currentBB->emplace(DESC_LW, CreateVReg(i), ptr, ImmediateOpKind{0});
+        translateLoadInst(i);
     } else if (const auto* i = dynamic_cast<const ir::StoreInst*>(instr)) {
-        Register ptr = prepareReg(i->getPointerOperand());
-        Register val = prepareReg(i->getValueOperand());
-        currentBB->emplace(DESC_SW, val, ptr, ImmediateOpKind{0});
+        translateStoreInst(i);
     } else if (const auto* i =
                    dynamic_cast<const ir::GetElementPtrInst*>(instr)) {
-        Register ptrBase = prepareReg(i->getPointerOperand());
-
-        // Calculate offset
-        std::vector<ir::Value*> idxList;
-        for (auto idx : i->indices()) {
-            idxList.push_back(idx.get());
-            ir::Type* ty = ir::GetElementPtrInst::getIndexedType(
-                i->getSourceElementType(), idxList);
-            size_t size = dl.getTypeSizeInBits(ty) / 8;
-
-            Register idxReg  = prepareReg(idx.get());
-            Register multReg = currentFunction->CreateVReg();
-
-            currentBB->emplace(DESC_MULTI, multReg, idxReg,
-                               ImmediateOpKind{static_cast<int64_t>(size)});
-
-            Register addReg = currentFunction->CreateVReg();
-            currentBB->emplace(DESC_ADD, addReg, multReg, ptrBase);
-            ptrBase = addReg;
-        }
-        AssignVReg(i, ptrBase);
+        translateGetElementPtrInst(i);
     } else if (const auto* i = dynamic_cast<const ir::ReturnInst*>(instr)) {
-        if (const ir::Value* retVal = i->getReturnValue()) {
-            currentBB->emplace(DESC_SET_RET_VAL, prepareReg(retVal));
-        }
-        currentBB->emplace(DESC_RET);
+        translateReturnInst(i);
     } else if (const auto* i = dynamic_cast<const ir::BranchInst*>(instr)) {
-        MachineBasicBlock* targetBB;
-        if (i->isConditional()) {
-            targetBB = bbMap.at(i->getFalseBB());
-            currentBB->emplace(DESC_BEQZ, prepareReg(i->getCondition()),
-                               targetBB);
-            currentBB->successors.push_back(targetBB);
-            targetBB->predecessors.push_back(currentBB);
-        }
-        targetBB = bbMap.at(i->getTrueBB());
-        currentBB->emplace(DESC_JUMP, bbMap.at(i->getTrueBB()));
-        currentBB->successors.push_back(targetBB);
-        targetBB->predecessors.push_back(currentBB);
+        translateBranchInst(i);
     } else if (const auto* i = dynamic_cast<const ir::CastInst*>(instr)) {
-        ASSERT_WITH(i->getOpcode() == ir::CastInst::ZExt, "Not support SExt");
-        AssignVReg(i, prepareReg(i->getSrc()));
+        translateCastInst(i);
     } else if (const auto* i = dynamic_cast<const ir::CallInst*>(instr)) {
-        int64_t count = 0;
-        for (auto arg : i->args()) {
-            currentBB->emplace(DESC_SET_CALL_ARG, prepareReg(arg.get()),
-                               ImmediateOpKind{count});
-            count++;
-        }
-        auto* func = dynamic_cast<ir::Function*>(i->getCalledOperand());
-        ASSERT(func);
-        currentBB->emplace(DESC_CALL, GlobalValueOpKind{func, 0});
-        if (!i->getType()->isVoidTy()) {
-            currentBB->emplace(DESC_GET_RET_VAL, CreateVReg(i));
-        }
+        translateCallInst(i);
     }
 }
 
-// void IRTranslator::prepareOperand(const ir::Value* value, Register reg) {
-//     if (const auto* arg = dynamic_cast<const ir::Argument*>(value)) {
-//         currentBasicBlock->instrs.emplace_back(std::make_unique<MachineInstr>(
-//             *currentBasicBlock, DESC_GET_CUR_ARG,
-//             std::initializer_list<MachineOperandContent>{
-//                 {RegisterOpKind{reg}}, {ImmediateOpKind{arg->getArgNo()}}}));
-//     } else if (const auto* ci = dynamic_cast<const ir::ConstantInt*>(value))
-//     {
-//         currentBasicBlock->instrs.emplace_back(std::make_unique<MachineInstr>(
-//             *currentBasicBlock, DESC_LI,
-//             std::initializer_list<MachineOperandContent>{
-//                 {RegisterOpKind{reg}}, {ImmediateOpKind{ci->getValue()}}}));
-//         // } else if (const auto* ai = dynamic_cast<const
-//         // ir::AllocaInst*>(&value)) {
-//     } else {
-//         StackObject* so = currentFunction->getStackObject(*value);
-//         ASSERT_WITH(so, "Bad Alloc");
-//         currentBasicBlock->instrs.emplace_back(std::make_unique<MachineInstr>(
-//             *currentBasicBlock, DESC_LOAD_FRAME,
-//             std::initializer_list<MachineOperandContent>{
-//                 {RegisterOpKind{reg}},
-//                 {ImmediateOpKind{static_cast<int64_t>(so->stackID)}}}));
-//     }
-// }
+void IRTranslator::translateBinaryOperator(const ir::BinaryOperator* i) {
+    const MachineInstrDesc* desc;
+    switch (i->getBinaryOps()) {
+        case ir::BinaryOperator::Add:
+            desc = &DESC_ADD;
+            break;
+        case ir::BinaryOperator::Sub:
+            desc = &DESC_SUB;
+            break;
+        case ir::BinaryOperator::Mul:
+            desc = &DESC_MUL;
+            break;
+        case ir::BinaryOperator::SDiv:
+            desc = &DESC_SDIV;
+            break;
+        case ir::BinaryOperator::SRem:
+            desc = &DESC_SREM;
+            break;
+        case ir::BinaryOperator::Xor:
+            desc = &DESC_XOR;
+            break;
+        default:
+            UNREACHABLE();
+    }
+    Register lhs = prepareReg(i->getLHS());
+    Register rhs = prepareReg(i->getRHS());
+    currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+}
+
+void IRTranslator::translateICmpInst(const ir::ICmpInst* i) {
+    const MachineInstrDesc* desc;
+    switch (i->getPredicate()) {
+        case ir::CmpInst::ICMP_EQ:
+            desc = &DESC_SEQ;
+            break;
+        case ir::CmpInst::ICMP_NE:
+            desc = &DESC_SNE;
+            break;
+        case ir::CmpInst::ICMP_SGT:
+            desc = &DESC_SGT;
+            break;
+        case ir::CmpInst::ICMP_SGE:
+            desc = &DESC_SGE;
+            break;
+        case ir::CmpInst::ICMP_SLT:
+            desc = &DESC_SLT;
+            break;
+        case ir::CmpInst::ICMP_SLE:
+            desc = &DESC_SLE;
+            break;
+    }
+    Register lhs = prepareReg(i->getLHS());
+    Register rhs = prepareReg(i->getRHS());
+    currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+}
+
+void IRTranslator::translateAllocaInst(const ir::AllocaInst* i) {
+    auto stackID = static_cast<int64_t>(currentFunction->CreateStackObject(
+        dl.getTypeSizeInBits(i->getAllocatedType()), i));
+    currentBB->emplace(DESC_FRAME, CreateVReg(i), ImmediateOpKind{stackID});
+}
+
+void IRTranslator::translateLoadInst(const ir::LoadInst* i) {
+    Register ptr = prepareReg(i->getPointerOperand());
+    currentBB->emplace(DESC_LW, CreateVReg(i), ptr, ImmediateOpKind{0});
+}
+
+void IRTranslator::translateStoreInst(const ir::StoreInst* i) {
+    Register ptr = prepareReg(i->getPointerOperand());
+    Register val = prepareReg(i->getValueOperand());
+    currentBB->emplace(DESC_SW, val, ptr, ImmediateOpKind{0});
+}
+
+void IRTranslator::translateGetElementPtrInst(const ir::GetElementPtrInst* i) {
+    Register ptrBase = prepareReg(i->getPointerOperand());
+
+    // Calculate offset
+    std::vector<ir::Value*> idxList;
+    for (auto idx : i->indices()) {
+        idxList.push_back(idx.get());
+        ir::Type* ty = ir::GetElementPtrInst::getIndexedType(
+            i->getSourceElementType(), idxList);
+        size_t size = dl.getTypeSizeInBits(ty) / 8;
+
+        Register idxReg  = prepareReg(idx.get());
+        Register multReg = currentFunction->CreateVReg();
+
+        currentBB->emplace(DESC_MULTI, multReg, idxReg,
+                           ImmediateOpKind{static_cast<int64_t>(size)});
+
+        Register addReg = currentFunction->CreateVReg();
+        currentBB->emplace(DESC_ADD, addReg, multReg, ptrBase);
+        ptrBase = addReg;
+    }
+    AssignVReg(i, ptrBase);
+}
+
+void IRTranslator::translateReturnInst(const ir::ReturnInst* i) {
+    if (const ir::Value* retVal = i->getReturnValue()) {
+        currentBB->emplace(DESC_SET_RET_VAL, prepareReg(retVal));
+    }
+    currentBB->emplace(DESC_RET);
+}
+
+void IRTranslator::translateBranchInst(const ir::BranchInst* i) {
+    MachineBasicBlock* targetBB;
+    if (i->isConditional()) {
+        targetBB = bbMap.at(i->getFalseBB());
+        currentBB->emplace(DESC_BEQZ, prepareReg(i->getCondition()), targetBB);
+        currentBB->successors.push_back(targetBB);
+        targetBB->predecessors.push_back(currentBB);
+    }
+    targetBB = bbMap.at(i->getTrueBB());
+    currentBB->emplace(DESC_JUMP, bbMap.at(i->getTrueBB()));
+    currentBB->successors.push_back(targetBB);
+    targetBB->predecessors.push_back(currentBB);
+}
+
+void IRTranslator::translateCastInst(const ir::CastInst* i) {
+    ASSERT_WITH(i->getOpcode() == ir::CastInst::ZExt, "Not support SExt");
+    AssignVReg(i, prepareReg(i->getSrc()));
+}
+
+void IRTranslator::translateCallInst(const ir::CallInst* i) {
+    int64_t count = 0;
+    for (auto arg : i->args()) {
+        currentBB->emplace(DESC_SET_CALL_ARG, prepareReg(arg.get()),
+                           ImmediateOpKind{count});
+        count++;
+    }
+    auto* func = dynamic_cast<ir::Function*>(i->getCalledOperand());
+    ASSERT(func);
+    currentBB->emplace(DESC_CALL, GlobalValueOpKind{func, 0});
+    if (!i->getType()->isVoidTy()) {
+        currentBB->emplace(DESC_GET_RET_VAL, CreateVReg(i));
+    }
+}
 
 Register IRTranslator::prepareReg(const ir::Value* value) {
     if (const auto* arg = dynamic_cast<const ir::Argument*>(value)) {

@@ -13,7 +13,7 @@
 #include "codegen/MIRPrinter.hpp"
 #include "codegen/Register.hpp"
 #include "codegen/ReplaceRegister.hpp"
-#include "ir/IRWriter.hpp"
+#include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
 #include "util/assert.hpp"
 
@@ -99,7 +99,7 @@ int main() {
             std::ofstream   mir1_file{"mir1.txt", std::ios_base::out};
             std::ofstream   mips_file{"mips.txt", std::ios_base::out};
             ir::PassManager pm{
-                new IRWriterPass{ir_file},
+                new IRPrinterPass{ir_file},
                 new MachineModuleAnalysisPass{},
                 new IRTranslator{},
                 new MIRPrinterPass{mir_file},

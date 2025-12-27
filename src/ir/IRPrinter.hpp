@@ -7,9 +7,9 @@
 namespace ir {
 class Module;
 
-class IRWriterPass final : public ImmutablePass {
+class IRPrinterPass final : public ImmutablePass {
    public:
-    IRWriterPass(std::ostream& os) : os(os) {}
+    IRPrinterPass(std::ostream& os) : os(os) {}
 
     void doInitialization(Module&) override;
 
