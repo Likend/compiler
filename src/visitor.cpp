@@ -122,17 +122,17 @@ Visitor::Visitor(const ASTNode& node) {
         putstr_type, ir::Function::ExternalLinkage, "putstr", *module);
 
     // declare void @putarray(i32, i32*)
-    auto* putarray_type = ir::FunctionType::get(
-        builder->getVoidTy(), {builder->getInt32Ty(), builder->getPtrTy()},
-        false);
-    auto* putarray_func = ir::Function::Create(
-        putarray_type, ir::Function::ExternalLinkage, "putarray", *module);
-    SymbolAttr putarray_attr;
-    putarray_attr.type.function_params = {int_type, array_type};
-    putarray_attr.type.is_function     = true;
-    putarray_attr.type.base_type       = SymbolBaseType::VOID;
-    putarray_attr.addr_value           = putarray_func;
-    symbol_table.try_add_symbol("putarray", putarray_attr);
+    // auto* putarray_type = ir::FunctionType::get(
+    //     builder->getVoidTy(), {builder->getInt32Ty(), builder->getPtrTy()},
+    //     false);
+    // auto* putarray_func = ir::Function::Create(
+    //     putarray_type, ir::Function::ExternalLinkage, "putarray", *module);
+    // SymbolAttr putarray_attr;
+    // putarray_attr.type.function_params = {int_type, array_type};
+    // putarray_attr.type.is_function     = true;
+    // putarray_attr.type.base_type       = SymbolBaseType::VOID;
+    // putarray_attr.addr_value           = putarray_func;
+    // symbol_table.try_add_symbol("putarray", putarray_attr);
 
     // declare init global function
     auto* init_global_func_ty =

@@ -79,7 +79,7 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
 
     os << ".data\n";
 
-    for (auto& gv : m.globals()) {
+    for (ir::GlobalVariable& gv : m.globals()) {
         printGlobalVariable(gv);
         os << '\n';
     }
@@ -91,7 +91,7 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
           "li $v0, 17\n"
           "syscall\n\n";
 
-    for (auto& f : m) {
+    for (ir::Function& f : m) {
         if (f.isDeclaration()) {
             if (f.getName() == "getint") {
                 os << "getint:\n"
@@ -119,6 +119,31 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
                 os << "putstr:\n"
                       "    lw $a0, 0($sp)\n"
                       "    li $v0, 4\n"
+                      "    syscall\n"
+                      "    jr $ra\n\n";
+            } else if (f.getName() == "putarray") {
+                os << "putarray:\n"
+                      "    lw $a0, 0($sp)\n"
+                      "    lw $a1, 4($sp)\n"
+                      "    li $v0, 1\n"
+                      "    syscall\n"
+                      "    sll $a0, $a0, 2\n"
+                      "    add $k0, $a0, $a1\n"
+                      "    li $a0, 58\n"
+                      "    li $v0, 11\n"
+                      "    syscall\n"
+                      "    move $k1, $a1\n"
+                      "    putarray.1:\n"
+                      "    li $a0, 32\n"
+                      "    li $v0, 11\n"
+                      "    syscall\n"
+                      "    lw $a0, 0($k1)\n"
+                      "    li $v0, 1\n"
+                      "    syscall\n"
+                      "    addi $k1, $k1, 4\n"
+                      "    bne $k0, $k1, putarray.1\n"
+                      "    li $a0, 10\n"
+                      "    li $v0, 11\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
             }
@@ -218,10 +243,10 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
             break;
 
         case DESC_ADD.opcode:
-            os << "add " << Binary{instr};
+            os << "addu " << Binary{instr};
             break;
         case DESC_SUB.opcode:
-            os << "sub " << Binary{instr};
+            os << "subu " << Binary{instr};
             break;
         case DESC_MUL.opcode:
             os << "mul " << Binary{instr};
@@ -256,7 +281,7 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
             break;
 
         case DESC_ADDI.opcode:
-            os << "addi " << Binary{instr};
+            os << "addiu " << Binary{instr};
             break;
         case DESC_MULTI.opcode:
             os << "mul " << Binary{instr};
