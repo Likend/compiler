@@ -4,7 +4,7 @@
 
 #include "ir/Constants.hpp"
 #include "ir/Type.hpp"
-#include "util/IntrusiveList.hpp"
+#include "ir/ValueSymbolTable.hpp"
 
 namespace ir {
 class GlobalValue : public Constant {
@@ -50,7 +50,7 @@ class GlobalObject : public GlobalValue {
 };
 
 class GlobalVariable final : public GlobalObject,
-                             public IntrusiveNodeWithParent<Module> {
+                             public ValueNode<GlobalVariable, Module> {
     bool isConstantGlobal;
 
    public:

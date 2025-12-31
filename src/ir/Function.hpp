@@ -9,7 +9,7 @@
 #include "util/IntrusiveList.hpp"
 
 namespace ir {
-class Argument final : public Value, public IntrusiveNodeWithParent<Function> {
+class Argument final : public Value, public ValueNode<Argument, Function> {
     size_t argNo;
 
     friend class Function;
@@ -24,7 +24,7 @@ class Argument final : public Value, public IntrusiveNodeWithParent<Function> {
 };
 
 class Function : public GlobalObject,
-                 public IntrusiveNodeWithParent<Module>,
+                 public ValueNode<Function, Module>,
                  public IntrusiveList<BasicBlock> {
     friend BasicBlock;
     friend Value;

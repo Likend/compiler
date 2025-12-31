@@ -7,13 +7,13 @@
 #include "ir/LLVMContext.hpp"
 #include "ir/Type.hpp"
 #include "ir/User.hpp"
+#include "ir/ValueSymbolTable.hpp"
 #include "util/assert.hpp"
-#include "util/IntrusiveList.hpp"
 
 namespace ir {
 class BasicBlock;
 
-class Instruction : public User, public IntrusiveNodeWithParent<BasicBlock> {
+class Instruction : public User, public ValueNode<Instruction, BasicBlock> {
    protected:
     Instruction(Type* ty, size_t numOperands) : User(ty, numOperands) {}
 

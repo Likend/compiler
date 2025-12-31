@@ -2,6 +2,9 @@
 
 #include <string>
 
+#include "ir/BasicBlock.hpp"
+#include "ir/Function.hpp"
+#include "ir/Module.hpp"
 #include "ir/Value.hpp"
 #include "util/assert.hpp"
 
@@ -38,4 +41,20 @@ void ValueSymbolTable::insertValue(Value* value) {
     ASSERT_WITH(lookup(value->getName()) == nullptr,
                 "Value with name already in table");
     vmap[value->getName()] = value;
+}
+
+ValueSymbolTable& value_node_detail::getSymTab(BasicBlock* bb) {
+    return bb->parent()->getValueSymbolTable();
+}
+
+ValueSymbolTable& value_node_detail::getSymTab(Module* m) {
+    return m->getValueSymbolTable();
+}
+
+ValueSymbolTable& value_node_detail::getSymTab(Function* f) {
+    return f->getValueSymbolTable();
+}
+
+bool value_node_detail::isVoid(Value* value) {
+    return value->getType()->isVoidTy();
 }

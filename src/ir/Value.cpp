@@ -1,9 +1,5 @@
 #include "ir/Value.hpp"
 
-#include "ir/BasicBlock.hpp"
-#include "ir/Function.hpp"
-#include "ir/GlobalValue.hpp"
-#include "ir/Instructions.hpp"
 #include "ir/LLVMContext.hpp"
 #include "ir/Module.hpp"
 #include "ir/Type.hpp"
@@ -16,28 +12,8 @@ void Value::addUse(Use& use) { use.addToList(&useList); }
 
 LLVMContext& Value::getContext() const { return ty->getContext(); }
 
-static ValueSymbolTable* getSymTab(Value* V) {
-    if (auto* I = dynamic_cast<Instruction*>(V)) {
-        if (BasicBlock* P = I->parent())
-            if (Function* PP = P->parent()) return &PP->getValueSymbolTable();
-    } else if (auto* BB = dynamic_cast<BasicBlock*>(V)) {
-        if (Function* P = BB->parent()) return &P->getValueSymbolTable();
-    } else if (auto* GV = dynamic_cast<GlobalVariable*>(V)) {
-        if (Module* P = GV->parent()) return &P->getValueSymbolTable();
-    } else if (auto* F = dynamic_cast<Function*>(V)) {
-        if (Module* P = F->parent()) return &P->getValueSymbolTable();
-    } else if (auto* A = dynamic_cast<Argument*>(V)) {
-        if (Function* P = A->parent()) return &P->getValueSymbolTable();
-    }
-    return nullptr;
-}
-
 void Value::setName(std::string name) {
     ASSERT_WITH(name.empty() || !getType()->isVoidTy(),
                 "Cannot assign a name to void values!");
-
-    auto* symTab = getSymTab(this);
-    if (symTab) name = symTab->makeUniqueName(std::move(name));
     this->name = std::move(name);
-    if (symTab) symTab->insertValue(this);
 }

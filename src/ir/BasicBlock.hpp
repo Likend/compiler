@@ -3,13 +3,14 @@
 #include "ir/Instructions.hpp"
 #include "ir/LLVMContext.hpp"
 #include "ir/Value.hpp"
+#include "ir/ValueSymbolTable.hpp"
 #include "util/IntrusiveList.hpp"
 
 namespace ir {
 class Function;
 
 class BasicBlock final : public Value,
-                         public IntrusiveNodeWithParent<Function>,
+                         public ValueNode<BasicBlock, Function>,
                          public IntrusiveList<Instruction> {
     friend class Function;
     friend class Instruction;
