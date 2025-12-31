@@ -6,7 +6,10 @@
 
 using namespace ir;
 Module::Module(std::string moduleID, LLVMContext& c)
-    : context(c), moduleID(std::move(moduleID)) {
+    : IntrusiveList<Function>(*this),
+      context(c),
+      moduleID(std::move(moduleID)),
+      globals(*this) {
     context.addModule(this);
 }
 

@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -24,20 +23,17 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
     if (!find.has_value()) return;  // empty function
 
     auto               firstInstr = *find;
-    MachineBasicBlock& firstBB    = firstInstr->getParent();
+    MachineBasicBlock& firstBB    = *firstInstr->parent();
+    MachineBasicBlock& lastBB     = mf.emplace_back("last");
 
-    MachineBasicBlock& lastBB =
-        *mf.basicBlocks.emplace_back(std::make_unique<MachineBasicBlock>(mf))
-             .get();
-    lastBB.name    = "last";
     auto lastInstr = lastBB.end();
 
     // 调用者保存所有寄存器
     for (const auto& [reg, _] : mf.regInfos) {
         auto i          = static_cast<int64_t>(mf.CreateStackObject(32));
         regToStack[reg] = i;
-        firstBB.insert(firstInstr, DESC_STORE_FRAME, reg, ImmediateOpKind{i});
-        lastBB.insert(lastInstr, DESC_LOAD_FRAME, reg, ImmediateOpKind{i});
+        firstBB.emplace(firstInstr, DESC_STORE_FRAME, reg, ImmediateOpKind{i});
+        lastBB.emplace(lastInstr, DESC_LOAD_FRAME, reg, ImmediateOpKind{i});
     }
 
     // Replace ret to br
@@ -46,7 +42,7 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
             MachineInstr& mi = *it;
             if (mi.desc.opcode == DESC_RET.opcode) {
                 // change to DESC_JUMP
-                mbb.insert(it, DESC_JUMP, MachineBBOpKind{&lastBB});
+                mbb.emplace(it, DESC_JUMP, MachineBBOpKind{&lastBB});
                 it = mbb.erase(it);
             } else {
                 ++it;
@@ -78,10 +74,11 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
     frameSize += 4;  // $ra
 
     firstInstr = firstBB.begin();
-    firstBB.insert(firstInstr, DESC_ADDI, sp, sp, ImmediateOpKind{-frameSize});
-    firstBB.insert(firstInstr, DESC_SW, ra, sp, ImmediateOpKind{frameSize - 4});
-    lastBB.insert(lastInstr, DESC_LW, ra, sp, ImmediateOpKind{frameSize - 4});
-    lastBB.insert(lastInstr, DESC_ADDI, sp, sp, ImmediateOpKind{frameSize});
+    firstBB.emplace(firstInstr, DESC_ADDI, sp, sp, ImmediateOpKind{-frameSize});
+    firstBB.emplace(firstInstr, DESC_SW, ra, sp,
+                    ImmediateOpKind{frameSize - 4});
+    lastBB.emplace(lastInstr, DESC_LW, ra, sp, ImmediateOpKind{frameSize - 4});
+    lastBB.emplace(lastInstr, DESC_ADDI, sp, sp, ImmediateOpKind{frameSize});
 
     // Frame
     std::unordered_map<size_t, int64_t> indexToOffset;
@@ -101,8 +98,8 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     int64_t     currentOffset = indexToOffset.at(stackIdx);
                     std::string annotation =
                         "Frame"s + std::to_string(stackIdx);
-                    mbb.insert(it, DESC_ADDI, mi.getOperand(0).getRegister(),
-                               sp, ImmediateOpKind{currentOffset})
+                    mbb.emplace(it, DESC_ADDI, mi.getOperand(0).getRegister(),
+                                sp, ImmediateOpKind{currentOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
@@ -112,8 +109,8 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     int64_t     currentOffset = indexToOffset.at(stackIdx);
                     std::string annotation =
                         "Frame"s + std::to_string(stackIdx);
-                    mbb.insert(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
-                               ImmediateOpKind{currentOffset})
+                    mbb.emplace(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
+                                ImmediateOpKind{currentOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
@@ -123,21 +120,21 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     int64_t     currentOffset = indexToOffset.at(stackIdx);
                     std::string annotation =
                         "Frame"s + std::to_string(stackIdx);
-                    mbb.insert(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
-                               ImmediateOpKind{currentOffset})
+                    mbb.emplace(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
+                                ImmediateOpKind{currentOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
                 }
                 case DESC_GET_RET_VAL.opcode: {
-                    mbb.insert(it, DESC_MOVE, mi.getOperand(0).getRegister(),
-                               v0);
+                    mbb.emplace(it, DESC_MOVE, mi.getOperand(0).getRegister(),
+                                v0);
                     it = mbb.erase(it);
                     break;
                 }
                 case DESC_SET_RET_VAL.opcode: {
-                    mbb.insert(it, DESC_MOVE, v0,
-                               mi.getOperand(0).getRegister());
+                    mbb.emplace(it, DESC_MOVE, v0,
+                                mi.getOperand(0).getRegister());
                     it = mbb.erase(it);
                     break;
                 }
@@ -146,8 +143,8 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     int64_t     currentOffset = frameSize + argIndex * 4;
                     std::string annotation =
                         "GetArg"s + std::to_string(argIndex);
-                    mbb.insert(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
-                               ImmediateOpKind{currentOffset})
+                    mbb.emplace(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
+                                ImmediateOpKind{currentOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
@@ -157,8 +154,8 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     int64_t     currentOffset = argIndex * 4;
                     std::string annotation =
                         "SetArg"s + std::to_string(argIndex);
-                    mbb.insert(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
-                               ImmediateOpKind{currentOffset})
+                    mbb.emplace(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
+                                ImmediateOpKind{currentOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
@@ -169,5 +166,5 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
         }
     }
 
-    lastBB.insert(lastInstr, DESC_RET);
+    lastBB.emplace(lastInstr, DESC_RET);
 }

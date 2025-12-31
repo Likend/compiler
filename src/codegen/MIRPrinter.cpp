@@ -40,7 +40,7 @@ void MIRPrinterPass::printFunction(MachineFunction& mf) {
 }
 
 void MIRPrinterPass::printBasicBlock(MachineBasicBlock& mbb) {
-    os << mbb.parent.getFunction().getName() << '.' << mbb.name << ":\n";
+    os << mbb.parent()->getFunction().getName() << '.' << mbb.name << ":\n";
     for (auto& instr : mbb) {
         printInstruction(instr);
     }
@@ -75,7 +75,7 @@ void MIRPrinterPass::printOperand(MachineOperand& op) {
         overloaded{[this](const RegisterOpKind& reg) { printReg(reg.reg); },
                    [this](const ImmediateOpKind& imm) { os << imm.imm; },
                    [this](const MachineBBOpKind& mbb) {
-                       os << mbb.mbb->parent.getFunction().getName() << '.'
+                       os << mbb.mbb->parent()->getFunction().getName() << '.'
                           << mbb.mbb->name;
                    },
                    [this](const GlobalValueOpKind& gv) {

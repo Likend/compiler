@@ -4,6 +4,7 @@
 
 #include "ir/Constants.hpp"
 #include "ir/Type.hpp"
+#include "util/IntrusiveList.hpp"
 
 namespace ir {
 class GlobalValue : public Constant {
@@ -16,13 +17,12 @@ class GlobalValue : public Constant {
 
    protected:
     GlobalValue(Type* ty, size_t numOperands, LinkageTypes linkage,
-                std::string name, unsigned addrSpace, Module& m)
+                std::string name, unsigned addrSpace)
         : Constant(PointerType::get(ty->getContext(),
                                     addrSpace),  // GlobalValue are pointers
                    numOperands),
           linkage(linkage),
-          valueTy(ty),
-          parent(&m) {
+          valueTy(ty) {
         setName(std::move(name));
     }
 
@@ -32,17 +32,12 @@ class GlobalValue : public Constant {
     LinkageTypes linkage;
     Type*        valueTy;
 
-   protected:
-    Module* parent = nullptr;
-    void    setParent(Module* parent) { this->parent = parent; }
-
    public:
     PointerType* getType() const {
         return static_cast<PointerType*>(Value::getType());
     }
     Type*        getValueType() const { return valueTy; }
     LinkageTypes getLinkageType() const { return linkage; }
-    Module*      getParent() const { return parent; }
 
     virtual bool isDeclaration() const = 0;
 };
@@ -50,23 +45,26 @@ class GlobalValue : public Constant {
 class GlobalObject : public GlobalValue {
    protected:
     GlobalObject(Type* ty, size_t numOperands, LinkageTypes linkage,
-                 std::string name, unsigned addrSpace, Module& m)
-        : GlobalValue(ty, numOperands, linkage, std::move(name), addrSpace, m) {}
+                 std::string name, unsigned addrSpace)
+        : GlobalValue(ty, numOperands, linkage, std::move(name), addrSpace) {}
 };
 
-class GlobalVariable final : public GlobalObject {
+class GlobalVariable final : public GlobalObject,
+                             public IntrusiveNodeWithParent<Module> {
     bool isConstantGlobal;
 
-    GlobalVariable(Module& m, Type* ty, bool isConstant, LinkageTypes linkage,
-                   Constant* initializer, std::string name, unsigned addrSpace);
-
    public:
-    static GlobalVariable* Create(Module& m, Type* ty, bool isConstant,
-                                  LinkageTypes linkage, Constant* initializer,
-                                  std::string name, unsigned addrSpace = 0) {
-        return new GlobalVariable(m, ty, isConstant, linkage, initializer,
-                                  std::move(name), addrSpace);
+    GlobalVariable(Type* ty, bool isConstant, LinkageTypes linkage,
+                   Constant* initializer, std::string name,
+                   unsigned addrSpace = 0)
+        : GlobalObject(ty, 1, linkage, std::move(name), addrSpace),
+          isConstantGlobal(isConstant) {
+        if (initializer) setOperand(0, initializer);
     }
+
+    static GlobalVariable* Create(Module& module, Type* ty, bool isConstant,
+                                  LinkageTypes linkage, Constant* initializer,
+                                  std::string name, unsigned addrSpace = 0);
 
     bool hasInitializer() const { return getNumOperands() != 0; }
 

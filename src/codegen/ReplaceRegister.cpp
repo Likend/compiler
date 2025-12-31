@@ -49,30 +49,30 @@ void ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
             for (MachineOperand& op : mi.explicit_uses()) {
                 if (auto stackObj = stackRegObjectId.find(op.getRegister());
                     stackObj != stackRegObjectId.end()) {
-                    size_t        use_id  = &op - mi.explicit_uses().begin();
-                    MachineInstr& instr   = op.getParent();
-                    Register      tempReg = allocReg(use_id);
+                    size_t   use_id  = &op - mi.explicit_uses().begin();
+                    Register tempReg = allocReg(use_id);
 
                     op.ChangeTo({RegisterOpKind{tempReg}});
                     mf.regInfos[tempReg].addUse(op);
-
-                    instr.getParent().insert(it, DESC_LOAD_FRAME, tempReg,
-                                             ImmediateOpKind{stackObj->second});
+                    IntrusiveIterator<MachineInstr> add{
+                        new MachineInstr{DESC_LOAD_FRAME, tempReg,
+                                         ImmediateOpKind{stackObj->second}}};
+                    add.insert_into(it);
                 }
             }
             ++it;
             for (MachineOperand& op : mi.explicit_defs()) {
                 if (auto stackObj = stackRegObjectId.find(op.getRegister());
                     stackObj != stackRegObjectId.end()) {
-                    size_t        def_id  = &op - mi.explicit_defs().begin();
-                    MachineInstr& instr   = op.getParent();
-                    Register      tempReg = allocReg(def_id);
+                    size_t   def_id  = &op - mi.explicit_defs().begin();
+                    Register tempReg = allocReg(def_id);
 
                     op.ChangeTo({RegisterOpKind{tempReg}});
                     mf.regInfos[tempReg].addDef(op);
-
-                    instr.getParent().insert(it, DESC_STORE_FRAME, tempReg,
-                                             ImmediateOpKind{stackObj->second});
+                    IntrusiveIterator<MachineInstr> add{
+                        new MachineInstr{DESC_STORE_FRAME, tempReg,
+                                         ImmediateOpKind{stackObj->second}}};
+                    add.insert_into(it);
                 }
             }
         }

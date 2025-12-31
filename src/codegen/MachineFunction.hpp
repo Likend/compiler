@@ -2,9 +2,9 @@
 
 #include <cstdint>
 #include <map>
-#include <memory>
 #include <vector>
 
+#include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineOperand.hpp"
 #include "codegen/Register.hpp"
 #include "codegen/RegisterInfo.hpp"
@@ -12,8 +12,6 @@
 #include "util/assert.hpp"
 
 namespace codegen {
-class MachineBasicBlock;
-
 struct StackObject {
     uint64_t stackID;
     int64_t  spOffset;
@@ -22,11 +20,9 @@ struct StackObject {
     const ir::Value* alloca = nullptr;
 };
 
-class MachineFunction {
+class MachineFunction : public IntrusiveList<MachineBasicBlock> {
    public:
     const ir::Function& f;
-
-    std::vector<std::unique_ptr<MachineBasicBlock>> basicBlocks;
 
     std::map<Register, RegisterInfo> regInfos;
     size_t                           lastRegID = 0;
@@ -37,8 +33,8 @@ class MachineFunction {
    public:
     std::string annotation;
 
-    MachineFunction(const ir::Function& f);
-    ~MachineFunction();
+    MachineFunction(const ir::Function& f)
+        : IntrusiveList<MachineBasicBlock>(*this), f(f) {}
 
     const ir::Function& getFunction() const { return f; }
 
@@ -86,56 +82,5 @@ class MachineFunction {
         // auto [it, inserted] = regInfos.try_emplace(reg, RegisterInfo{});
         regInfos[op.getRegister()].addUse(op);
     }
-
-    struct iterator
-        : public iterator_transform<iterator, decltype(basicBlocks)::iterator,
-                                    MachineBasicBlock> {
-        using iterator_transform::iterator_transform;
-        MachineBasicBlock& transform(
-            std::unique_ptr<MachineBasicBlock>& i) const {
-            return *i;
-        }
-    };
-    struct const_iterator
-        : public iterator_transform<const_iterator,
-                                    decltype(basicBlocks)::const_iterator,
-                                    const MachineBasicBlock> {
-        using iterator_transform::iterator_transform;
-        const MachineBasicBlock& transform(
-            const std::unique_ptr<MachineBasicBlock>& i) const {
-            return *i;
-        }
-    };
-    struct reverse_iterator
-        : public iterator_transform<reverse_iterator,
-                                    decltype(basicBlocks)::reverse_iterator,
-                                    MachineBasicBlock> {
-        using iterator_transform::iterator_transform;
-        MachineBasicBlock& transform(
-            std::unique_ptr<MachineBasicBlock>& i) const {
-            return *i;
-        }
-    };
-    struct const_reverse_iterator
-        : public iterator_transform<
-              const_reverse_iterator,
-              decltype(basicBlocks)::const_reverse_iterator,
-              const MachineBasicBlock> {
-        using iterator_transform::iterator_transform;
-        const MachineBasicBlock& transform(
-            const std::unique_ptr<MachineBasicBlock>& i) const {
-            return *i;
-        }
-    };
-
-    iterator       begin() { return basicBlocks.begin(); }
-    const_iterator begin() const { return basicBlocks.begin(); }
-    iterator       end() { return basicBlocks.end(); }
-    const_iterator end() const { return basicBlocks.end(); }
-
-    reverse_iterator       rbegin() { return basicBlocks.rbegin(); }
-    const_reverse_iterator rbegin() const { return basicBlocks.rbegin(); }
-    reverse_iterator       rend() { return basicBlocks.rend(); }
-    const_reverse_iterator rend() const { return basicBlocks.rend(); }
 };
 }  // namespace codegen

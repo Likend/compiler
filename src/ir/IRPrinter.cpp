@@ -278,7 +278,7 @@ class Printer {
 
         os << '(';
         Delimeter deli(", ");
-        for (const Argument& arg : f->args()) {
+        for (const Argument& arg : f->args) {
             os << deli();
             printArgument(&arg, f->isDeclaration());
         }
@@ -300,7 +300,7 @@ class Printer {
 
     void printModule(const Module* module) {
         os << "; ModuleID = '" << module->getName() << "'\n";
-        for (const GlobalVariable& gv : module->globals()) {
+        for (const GlobalVariable& gv : module->globals) {
             printGlobal(&gv);
             os << '\n';
         }

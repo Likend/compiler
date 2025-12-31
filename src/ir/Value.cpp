@@ -2,6 +2,7 @@
 
 #include "ir/BasicBlock.hpp"
 #include "ir/Function.hpp"
+#include "ir/GlobalValue.hpp"
 #include "ir/Instructions.hpp"
 #include "ir/LLVMContext.hpp"
 #include "ir/Module.hpp"
@@ -17,15 +18,16 @@ LLVMContext& Value::getContext() const { return ty->getContext(); }
 
 static ValueSymbolTable* getSymTab(Value* V) {
     if (auto* I = dynamic_cast<Instruction*>(V)) {
-        if (BasicBlock* P = I->getParent())
-            if (Function* PP = P->getParent())
-                return &PP->getValueSymbolTable();
+        if (BasicBlock* P = I->parent())
+            if (Function* PP = P->parent()) return &PP->getValueSymbolTable();
     } else if (auto* BB = dynamic_cast<BasicBlock*>(V)) {
-        if (Function* P = BB->getParent()) return &P->getValueSymbolTable();
-    } else if (auto* GV = dynamic_cast<GlobalValue*>(V)) {
-        if (Module* P = GV->getParent()) return &P->getValueSymbolTable();
+        if (Function* P = BB->parent()) return &P->getValueSymbolTable();
+    } else if (auto* GV = dynamic_cast<GlobalVariable*>(V)) {
+        if (Module* P = GV->parent()) return &P->getValueSymbolTable();
+    } else if (auto* F = dynamic_cast<Function*>(V)) {
+        if (Module* P = F->parent()) return &P->getValueSymbolTable();
     } else if (auto* A = dynamic_cast<Argument*>(V)) {
-        if (Function* P = A->getParent()) return &P->getValueSymbolTable();
+        if (Function* P = A->parent()) return &P->getValueSymbolTable();
     }
     return nullptr;
 }

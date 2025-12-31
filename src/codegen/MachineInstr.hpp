@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "codegen/MachineOperand.hpp"
+#include "util/IntrusiveList.hpp"
 #include "util/iterator_range.hpp"
 
 namespace codegen {
@@ -27,9 +28,43 @@ struct MachineInstrDesc {
     // unsigned implicitUsesNum;
 };
 
-class MachineInstr {
-    MachineBasicBlock& parent;
+class MachineInstrNode : public IntrusiveNodeWithParent<MachineBasicBlock> {
+    template <typename T>
+    friend struct ::IntrusiveNodeTraits;
 
+   public:
+    MachineInstrNode() = default;
+
+   private:
+    MachineInstrNode(MachineBasicBlock* parent)
+        : IntrusiveNodeWithParent<MachineBasicBlock>(parent) {}
+
+    using intrusive_node_type = MachineInstrNode;
+
+    static MachineInstrNode* next(MachineInstrNode* curr) {
+        return static_cast<MachineInstrNode*>(
+            IntrusiveNodeWithParent<MachineBasicBlock>::next(curr));
+    }
+
+    static MachineInstrNode* prev(MachineInstrNode* curr) {
+        return static_cast<MachineInstrNode*>(
+            IntrusiveNodeWithParent<MachineBasicBlock>::prev(curr));
+    }
+
+    static void link_between(MachineInstrNode* curr, MachineInstrNode* prev,
+                             MachineInstrNode* next);
+
+    static void unlink(MachineInstrNode* curr) {
+        IntrusiveNodeWithParent<MachineBasicBlock>::unlink(curr);
+    }
+
+    static MachineInstrNode* create_sentinel(MachineBasicBlock& parent) {
+        return new MachineInstrNode{&parent};
+    }
+};
+
+class MachineInstr : public MachineInstrNode {
+    friend class MachineInstrNode;
     // Operands 顺序：@see MCInstrDesc
     // 1. explicitDefsNum 个 explicit defs (reg)
     // 2. explicitUsesNum 个 explicit uses (reg)
@@ -42,16 +77,18 @@ class MachineInstr {
     const MachineInstrDesc& desc;
     std::string             annotation;
 
-    MachineInstr(MachineBasicBlock& parent, const MachineInstrDesc& desc,
+    MachineInstr(const MachineInstrDesc& desc,
                  std::initializer_list<MachineOperandContent>);
+    template <typename... OperandArgT>
+    MachineInstr(const MachineInstrDesc& desc, OperandArgT... args)
+        : MachineInstr(desc, {MachineOperandContent{args}...}) {}
+
     ~MachineInstr();
 
-    MachineBasicBlock&       getParent() { return parent; }
-    const MachineBasicBlock& getParent() const { return parent; }
-    uint16_t                 getOpcode() const { return desc.opcode; }
-    size_t                   getNumOperands() const { return desc.operandsNum; }
-    MachineOperand&          getOperand(size_t i) { return ops[i]; }
-    const MachineOperand&    getOperand(size_t i) const { return ops[i]; }
+    uint16_t              getOpcode() const { return desc.opcode; }
+    size_t                getNumOperands() const { return desc.operandsNum; }
+    MachineOperand&       getOperand(size_t i) { return ops[i]; }
+    const MachineOperand& getOperand(size_t i) const { return ops[i]; }
 
     using mop_iterator       = MachineOperand*;
     using const_mop_iterator = const MachineOperand*;

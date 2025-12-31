@@ -1,7 +1,6 @@
 #include "codegen/IRTranslator.hpp"
 
 #include <cstdint>
-#include <memory>
 
 #include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineFunction.hpp"
@@ -51,13 +50,9 @@ void IRTranslator::runOnMachineFunction(MachineFunction& mf) {
 
     bbMap.clear();
     for (const ir::BasicBlock& bb : function) {
-        MachineBasicBlock* b =
-            currentFunction->basicBlocks
-                .emplace_back(
-                    std::make_unique<MachineBasicBlock>(*currentFunction))
-                .get();
-        b->name    = bb.getName();
-        bbMap[&bb] = b;
+        MachineBasicBlock& b =
+            currentFunction->emplace_back(std::string(bb.getName()));
+        bbMap[&bb] = &b;
     }
 
     for (const ir::BasicBlock& bb : function) {
@@ -124,7 +119,7 @@ void IRTranslator::translateBinaryOperator(const ir::BinaryOperator* i) {
     }
     Register lhs = prepareReg(i->getLHS());
     Register rhs = prepareReg(i->getRHS());
-    currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+    currentBB->emplace_back(*desc, CreateVReg(i), lhs, rhs);
 }
 
 void IRTranslator::translateICmpInst(const ir::ICmpInst* i) {
@@ -151,24 +146,25 @@ void IRTranslator::translateICmpInst(const ir::ICmpInst* i) {
     }
     Register lhs = prepareReg(i->getLHS());
     Register rhs = prepareReg(i->getRHS());
-    currentBB->emplace(*desc, CreateVReg(i), lhs, rhs);
+    currentBB->emplace_back(*desc, CreateVReg(i), lhs, rhs);
 }
 
 void IRTranslator::translateAllocaInst(const ir::AllocaInst* i) {
     auto stackID = static_cast<int64_t>(currentFunction->CreateStackObject(
         dl.getTypeSizeInBits(i->getAllocatedType()), i));
-    currentBB->emplace(DESC_FRAME, CreateVReg(i), ImmediateOpKind{stackID});
+    currentBB->emplace_back(DESC_FRAME, CreateVReg(i),
+                            ImmediateOpKind{stackID});
 }
 
 void IRTranslator::translateLoadInst(const ir::LoadInst* i) {
     Register ptr = prepareReg(i->getPointerOperand());
-    currentBB->emplace(DESC_LW, CreateVReg(i), ptr, ImmediateOpKind{0});
+    currentBB->emplace_back(DESC_LW, CreateVReg(i), ptr, ImmediateOpKind{0});
 }
 
 void IRTranslator::translateStoreInst(const ir::StoreInst* i) {
     Register ptr = prepareReg(i->getPointerOperand());
     Register val = prepareReg(i->getValueOperand());
-    currentBB->emplace(DESC_SW, val, ptr, ImmediateOpKind{0});
+    currentBB->emplace_back(DESC_SW, val, ptr, ImmediateOpKind{0});
 }
 
 void IRTranslator::translateGetElementPtrInst(const ir::GetElementPtrInst* i) {
@@ -185,11 +181,11 @@ void IRTranslator::translateGetElementPtrInst(const ir::GetElementPtrInst* i) {
         Register idxReg  = prepareReg(idx.get());
         Register multReg = currentFunction->CreateVReg();
 
-        currentBB->emplace(DESC_MULTI, multReg, idxReg,
-                           ImmediateOpKind{static_cast<int64_t>(size)});
+        currentBB->emplace_back(DESC_MULTI, multReg, idxReg,
+                                ImmediateOpKind{static_cast<int64_t>(size)});
 
         Register addReg = currentFunction->CreateVReg();
-        currentBB->emplace(DESC_ADD, addReg, multReg, ptrBase);
+        currentBB->emplace_back(DESC_ADD, addReg, multReg, ptrBase);
         ptrBase = addReg;
     }
     AssignVReg(i, ptrBase);
@@ -197,21 +193,22 @@ void IRTranslator::translateGetElementPtrInst(const ir::GetElementPtrInst* i) {
 
 void IRTranslator::translateReturnInst(const ir::ReturnInst* i) {
     if (const ir::Value* retVal = i->getReturnValue()) {
-        currentBB->emplace(DESC_SET_RET_VAL, prepareReg(retVal));
+        currentBB->emplace_back(DESC_SET_RET_VAL, prepareReg(retVal));
     }
-    currentBB->emplace(DESC_RET);
+    currentBB->emplace_back(DESC_RET);
 }
 
 void IRTranslator::translateBranchInst(const ir::BranchInst* i) {
     MachineBasicBlock* targetBB;
     if (i->isConditional()) {
         targetBB = bbMap.at(i->getFalseBB());
-        currentBB->emplace(DESC_BEQZ, prepareReg(i->getCondition()), targetBB);
+        currentBB->emplace_back(DESC_BEQZ, prepareReg(i->getCondition()),
+                                targetBB);
         currentBB->successors.push_back(targetBB);
         targetBB->predecessors.push_back(currentBB);
     }
     targetBB = bbMap.at(i->getTrueBB());
-    currentBB->emplace(DESC_JUMP, bbMap.at(i->getTrueBB()));
+    currentBB->emplace_back(DESC_JUMP, bbMap.at(i->getTrueBB()));
     currentBB->successors.push_back(targetBB);
     targetBB->predecessors.push_back(currentBB);
 }
@@ -224,33 +221,33 @@ void IRTranslator::translateCastInst(const ir::CastInst* i) {
 void IRTranslator::translateCallInst(const ir::CallInst* i) {
     int64_t count = 0;
     for (auto arg : i->args()) {
-        currentBB->emplace(DESC_SET_CALL_ARG, prepareReg(arg.get()),
-                           ImmediateOpKind{count});
+        currentBB->emplace_back(DESC_SET_CALL_ARG, prepareReg(arg.get()),
+                                ImmediateOpKind{count});
         count++;
     }
     auto* func = dynamic_cast<ir::Function*>(i->getCalledOperand());
     ASSERT(func);
-    currentBB->emplace(DESC_CALL, GlobalValueOpKind{func, 0});
+    currentBB->emplace_back(DESC_CALL, GlobalValueOpKind{func, 0});
     if (!i->getType()->isVoidTy()) {
-        currentBB->emplace(DESC_GET_RET_VAL, CreateVReg(i));
+        currentBB->emplace_back(DESC_GET_RET_VAL, CreateVReg(i));
     }
 }
 
 Register IRTranslator::prepareReg(const ir::Value* value) {
     if (const auto* arg = dynamic_cast<const ir::Argument*>(value)) {
         Register vreg = getOrCreateVReg(arg);
-        currentBB->emplace(DESC_GET_CUR_ARG, RegisterOpKind{vreg},
-                           ImmediateOpKind{arg->getArgNo()});
+        currentBB->emplace_back(DESC_GET_CUR_ARG, RegisterOpKind{vreg},
+                                ImmediateOpKind{arg->getArgNo()});
         return vreg;
     } else if (const auto* ci = dynamic_cast<const ir::ConstantInt*>(value)) {
         Register vreg = currentFunction->CreateVReg();
-        currentBB->emplace(DESC_LI, RegisterOpKind{vreg},
-                           ImmediateOpKind{ci->getValue()});
+        currentBB->emplace_back(DESC_LI, RegisterOpKind{vreg},
+                                ImmediateOpKind{ci->getValue()});
         return vreg;
     } else if (const auto* gv =
                    dynamic_cast<const ir::GlobalVariable*>(value)) {
         Register vreg = currentFunction->CreateVReg();
-        currentBB->emplace(DESC_LA, vreg, GlobalValueOpKind{gv, 0});
+        currentBB->emplace_back(DESC_LA, vreg, GlobalValueOpKind{gv, 0});
         return vreg;
     } else {
         return getVReg(value);

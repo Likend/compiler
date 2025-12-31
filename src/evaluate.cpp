@@ -221,9 +221,8 @@ void SingleCond::gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
 
 void LAndCond::gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
                         ir::IRBuilder& builder) {
-    ir::BasicBlock* next_bb =
-        ir::BasicBlock::Create(builder.getContext(), "land.next",
-                               builder.GetInsertBlock()->getParent());
+    ir::BasicBlock* next_bb = ir::BasicBlock::Create(
+        builder.getContext(), "land.next", builder.GetInsertBlock()->parent());
     lhs->gen_code(next_bb, false_bb, builder);
     builder.SetInsertPoint(next_bb);
     rhs->gen_code(true_bb, false_bb, builder);
@@ -231,9 +230,8 @@ void LAndCond::gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
 
 void LOrCond::gen_code(ir::BasicBlock* true_bb, ir::BasicBlock* false_bb,
                        ir::IRBuilder& builder) {
-    ir::BasicBlock* next_bb =
-        ir::BasicBlock::Create(builder.getContext(), "lor.next",
-                               builder.GetInsertBlock()->getParent());
+    ir::BasicBlock* next_bb = ir::BasicBlock::Create(
+        builder.getContext(), "lor.next", builder.GetInsertBlock()->parent());
     lhs->gen_code(true_bb, next_bb, builder);
     builder.SetInsertPoint(next_bb);
     rhs->gen_code(true_bb, false_bb, builder);

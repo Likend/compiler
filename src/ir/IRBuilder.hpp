@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "ir/BasicBlock.hpp"
@@ -9,7 +10,9 @@
 #include "ir/GlobalValue.hpp"
 #include "ir/Instructions.hpp"
 #include "ir/LLVMContext.hpp"
+#include "ir/Module.hpp"
 #include "ir/Type.hpp"
+#include "util/IntrusiveList.hpp"
 
 namespace ir {
 
@@ -40,11 +43,12 @@ class IRBuilder {
     GlobalVariable* CreateGlobalString(std::string str, std::string name,
                                        bool addNull = true) {
         if (addNull) str.push_back('\0');
-        Module* module   = bb->getParent()->getParent();
+        Module* module   = bb->parent()->parent();
         auto*   constStr = ConstantString::getString(context, std::move(str));
-        auto*   gv = GlobalVariable::Create(*module, constStr->getType(), true,
-                                            GlobalValue::InternalLinkage,
-                                            constStr, std::move(name));
+        auto*   gv       = new GlobalVariable{constStr->getType(), true,
+                                      GlobalValue::InternalLinkage, constStr,
+                                      std::move(name)};
+        module->globals.push_back(gv);
         return gv;
     }
     ConstantInt* getInt1(bool v) {
@@ -56,50 +60,72 @@ class IRBuilder {
 
     // Instructions
     ReturnInst* CreateRetVoid() {
-        return ReturnInst::Create(context, nullptr, bb);
+        auto* inst = new ReturnInst{context, nullptr};
+        bb->push_back(inst);
+        return inst;
     }
     ReturnInst* CreateRet(Value* v) {
-        return ReturnInst::Create(context, v, bb);
+        auto* inst = new ReturnInst{context, v};
+        bb->push_back(inst);
+        return inst;
     }
     BranchInst* CreateBr(BasicBlock* dst) {
-        return BranchInst::Create(dst, bb);
+        auto* inst = new BranchInst{dst};
+        bb->push_back(inst);
+        return inst;
     }
     BranchInst* CreateCondBr(Value* cond, BasicBlock* ifTrue,
                              BasicBlock* ifFalse) {
-        return BranchInst::Create(ifTrue, ifFalse, cond, bb);
+        auto* inst = new BranchInst{ifTrue, ifFalse, cond};
+        bb->push_back(inst);
+        return inst;
     }
     CallInst* CreateCall(FunctionType* fTy, Value* callee,
                          const std::vector<Value*>& args, std::string name) {
-        return CallInst::Create(fTy, callee, args, std::move(name), bb);
+        auto* inst = new CallInst{fTy, callee, args, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
 
     // Instruction - BinaryOp
    public:
-    Value* CreateNSWAdd(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::Add, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateNSWAdd(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::Add, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateNSWSub(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::Sub, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateNSWSub(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::Sub, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateNSWMul(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::Mul, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateNSWMul(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::Mul, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateSDiv(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::SDiv, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateSDiv(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::SDiv, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateSRem(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::SRem, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateSRem(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::SRem, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateXor(Value* lhs, Value* rhs, std::string name) {
-        return BinaryOperator::Create(BinaryOperator::Xor, lhs, rhs,
-                                      std::move(name), bb);
+    BinaryOperator* CreateXor(Value* lhs, Value* rhs, std::string name) {
+        auto* inst = new BinaryOperator{BinaryOperator::Xor, lhs, rhs,
+                                        lhs->getType(), std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateNSWNeg(Value* v, std::string name) {
+    BinaryOperator* CreateNSWNeg(Value* v, std::string name) {
         return CreateNSWSub(
             ConstantInt::get(static_cast<IntegerType*>(v->getType()), 0), v,
             std::move(name));
@@ -108,7 +134,9 @@ class IRBuilder {
     // Instruction - Compare
     ICmpInst* CreateICmp(CmpInst::Predicate p, Value* lhs, Value* rhs,
                          std::string name) {
-        return ICmpInst::Create(p, lhs, rhs, std::move(name), bb);
+        auto* inst = new ICmpInst{p, lhs, rhs, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
     ICmpInst* CreateICmpEQ(Value* lhs, Value* rhs, std::string name) {
         return CreateICmp(CmpInst::ICMP_EQ, lhs, rhs, std::move(name));
@@ -133,13 +161,22 @@ class IRBuilder {
     Value* CreateCast(CastInst::CastOps op, Value* v, Type* destTy,
                       std::string name) {
         if (v->getType() == destTy) return v;
-        return CastInst::Create(op, v, destTy, std::move(name), bb);
+        switch (op) {
+            case CastInst::SExt:
+                return CreateSExt(v, destTy, std::move(name));
+            case CastInst::ZExt:
+                return CreateZExt(v, destTy, std::move(name));
+        }
     }
-    Value* CreateSExt(Value* v, Type* destTy, std::string name) {
-        return CreateCast(CastInst::SExt, v, destTy, std::move(name));
+    SExtInst* CreateSExt(Value* v, Type* destTy, std::string name) {
+        auto* inst = new SExtInst{v, destTy, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
-    Value* CreateZExt(Value* v, Type* destTy, std::string name) {
-        return CreateCast(CastInst::ZExt, v, destTy, std::move(name));
+    ZExtInst* CreateZExt(Value* v, Type* destTy, std::string name) {
+        auto* inst = new ZExtInst{v, destTy, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
 
     // Instruction - Memory
@@ -147,19 +184,27 @@ class IRBuilder {
         if (arraySize == nullptr) {
             arraySize = ConstantInt::get(getInt32Ty(), 1);
         }
-        return AllocaInst::Create(ty, 0, arraySize, std::move(name), bb);
+        auto* inst = new AllocaInst{ty, 0, arraySize, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
     LoadInst* CreateLoad(Type* ty, Value* ptr, std::string name) {
-        return LoadInst::Create(ty, ptr, std::move(name), bb);
+        auto* inst = new LoadInst{ty, ptr, std::move(name)};
+        bb->push_back(inst);
+        return inst;
     }
     StoreInst* CreateStore(Value* val, Value* ptr) {
-        return StoreInst::Create(val, ptr, bb);
+        auto* inst = new StoreInst{val, ptr};
+        bb->push_back(inst);
+        return inst;
     }
     GetElementPtrInst* CreateGEP(Type* pointeeTy, Value* ptr,
                                  const std::vector<Value*> idxList,
                                  std::string               name) {
-        return GetElementPtrInst::Create(pointeeTy, ptr, idxList,
-                                         std::move(name), bb);
+        auto* inst =
+            new GetElementPtrInst{pointeeTy, ptr, idxList, std::move((name))};
+        bb->push_back(inst);
+        return inst;
     }
 };
 }  // namespace ir

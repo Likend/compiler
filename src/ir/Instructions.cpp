@@ -1,24 +1,20 @@
 #include "ir/Instructions.hpp"
 
-#include <memory>
+#include <string>
+#include <utility>
 
 #include "ir/BasicBlock.hpp"
-#include "ir/Function.hpp"
+#include "ir/LLVMContext.hpp"
 #include "ir/Type.hpp"
+#include "util/assert.hpp"
 
 using namespace ir;
 
-Instruction::Instruction(Type* ty, size_t numOperands, BasicBlock* parent)
-    : User(ty, numOperands), parent(parent) {
-    ASSERT_WITH(parent, "Cannot add to null parent currently");
-    parent->instList.emplace_back(std::unique_ptr<Instruction>(this));
-}
-
 GetElementPtrInst::GetElementPtrInst(Type* pointeeTy, Value* ptr,
                                      const std::vector<Value*>& idxList,
-                                     std::string name, BasicBlock* parent)
+                                     std::string                name)
     : Instruction(ptr->getType(),  // PointerType
-                  idxList.size() + 1, parent),
+                  idxList.size() + 1),
       sourceElementType(pointeeTy),
       resultElementType(getIndexedType(pointeeTy, idxList)) {
     ASSERT(ptr->getType()->isPointerTy());
@@ -50,9 +46,8 @@ Type* GetElementPtrInst::getIndexedType(Type*                      pointeeType,
 }
 
 CallInst::CallInst(FunctionType* ty, Value* func,
-                   const std::vector<Value*>& args, std::string name,
-                   BasicBlock* parent)
-    : Instruction(ty->getReturnType(), args.size() + 1, parent), funcTy(ty) {
+                   const std::vector<Value*>& args, std::string name)
+    : Instruction(ty->getReturnType(), args.size() + 1), funcTy(ty) {
     setOperand(getNumOperands() - 1, func);
     for (size_t i = 0; i < args.size(); i++) {
         setOperand(i, args[i]);
@@ -60,16 +55,15 @@ CallInst::CallInst(FunctionType* ty, Value* func,
     setName(std::move(name));
 }
 
-BranchInst::BranchInst(BasicBlock* ifTrue, BasicBlock* ifFalse, Value* cond,
-                       BasicBlock* parent)
-    : Instruction(Type::getVoidTy(ifTrue->getContext()), 3, parent) {
+BranchInst::BranchInst(BasicBlock* ifTrue, BasicBlock* ifFalse, Value* cond)
+    : Instruction(Type::getVoidTy(ifTrue->getContext()), 3) {
     setOperand(2, ifTrue);   // numOperands -1
     setOperand(1, ifFalse);  // numOperands -2
     setOperand(0, cond);     // numOperands -3
 }
 
-BranchInst::BranchInst(BasicBlock* ifTrue, BasicBlock* parent)
-    : Instruction(Type::getVoidTy(ifTrue->getContext()), 1, parent) {
+BranchInst::BranchInst(BasicBlock* ifTrue)
+    : Instruction(Type::getVoidTy(ifTrue->getContext()), 1) {
     setOperand(0, ifTrue);  // numOperands -1
 }
 
@@ -82,16 +76,4 @@ BasicBlock* BranchInst::getFalseBB() const {
         return dynamic_cast<BasicBlock*>(getOperand(1));
     else
         return nullptr;
-}
-
-CastInst* CastInst::Create(CastOps ops, Value* s, Type* ty, std::string name,
-                           BasicBlock* parent) {
-    switch (ops) {
-        case SExt:
-            return SExtInst::Create(s, ty, std::move(name), parent);
-        case ZExt:
-            return ZExtInst::Create(s, ty, std::move(name), parent);
-        default:
-            UNREACHABLE();
-    }
 }

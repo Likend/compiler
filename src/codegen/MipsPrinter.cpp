@@ -56,7 +56,7 @@ static std::ostream& operator<<(std::ostream& os, const MachineOperand& op) {
     std::visit(overloaded{[&os](const RegisterOpKind& reg) { os << reg.reg; },
                           [&os](const ImmediateOpKind& imm) { os << imm.imm; },
                           [&os](const MachineBBOpKind& mbb) {
-                              os << mbb.mbb->parent.getFunction().getName()
+                              os << mbb.mbb->parent()->getFunction().getName()
                                  << '.' << mbb.mbb->name;
                           },
                           [&os](const GlobalValueOpKind& gv) {
@@ -79,7 +79,7 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
 
     os << ".data\n";
 
-    for (ir::GlobalVariable& gv : m.globals()) {
+    for (ir::GlobalVariable& gv : m.globals) {
         printGlobalVariable(gv);
         os << '\n';
     }
@@ -207,7 +207,7 @@ void MipsPrinterPass::printFunction(MachineFunction& mf) {
 }
 
 void MipsPrinterPass::printBasicBlock(MachineBasicBlock& mbb) {
-    os << mbb.parent.getFunction().getName() << '.' << mbb.name << ":\n";
+    os << mbb.parent()->getFunction().getName() << '.' << mbb.name << ":\n";
     for (auto& instr : mbb) {
         printInstruction(instr);
     }

@@ -480,7 +480,7 @@ void Visitor::invoke_func_def(const ASTNode& node) {
 
     // add params to symbol table
     size_t i = 0;
-    for (auto& arg : llvm_function_value->args()) {
+    for (auto& arg : llvm_function_value->args) {
         const auto& [type, ident] = params[i];
         arg.setName(std::string(ident.content));
         ir::Value* arg_ptr;
@@ -643,8 +643,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         auto cond     = invoke_cond(*cond_node);
         bool has_else = node.children.get(Token::Type::ELSETK) != nullptr;
 
-        ir::Function* this_function = builder->GetInsertBlock()->getParent();
-        ASSERT(this_function);
+        ir::Function*   this_function = builder->GetInsertBlock()->parent();
         ir::BasicBlock* then_bb =
             ir::BasicBlock::Create(*context, "if.then", this_function);
         ir::BasicBlock* else_bb = nullptr;
@@ -716,8 +715,7 @@ void Visitor::invoke_stmt(const ASTNode& node, ScopeInfo scope_info) {
         const ASTNode* stmt = node.children.get(ASTNode::Type::STMT);
         ASSERT(stmt);
 
-        ir::Function* this_function = builder->GetInsertBlock()->getParent();
-        ASSERT(this_function);
+        ir::Function*   this_function = builder->GetInsertBlock()->parent();
         ir::BasicBlock* loop_bb =
             ir::BasicBlock::Create(*context, "loop", this_function);
         ir::BasicBlock* cond_bb =
