@@ -374,6 +374,7 @@ static std::ostream& operator<<(std::ostream& os, const Type* type) {
     return os;
 }
 
-void IRPrinterPass::doInitialization(Module& module) {
+bool IRPrinterPass::doInitialization(Module& module) {
     os << &module << std::endl;
+    return false;
 }

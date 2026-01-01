@@ -14,7 +14,7 @@
 
 using namespace codegen;
 
-void MIRPrinterPass::doInitialization(ir::Module& m) {
+bool MIRPrinterPass::doInitialization(ir::Module& m) {
     auto& module = getAnalysis<MachineModule>();
 
     for (auto& f : m) {
@@ -22,6 +22,8 @@ void MIRPrinterPass::doInitialization(ir::Module& m) {
         ASSERT(mf);
         printFunction(*mf);
     }
+
+    return false;
 }
 
 void MIRPrinterPass::printFunction(MachineFunction& mf) {

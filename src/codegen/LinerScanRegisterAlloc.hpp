@@ -110,9 +110,10 @@ class LinerScanRegisterAllocPass final : public MachineFunctionPass {
         : physRegPool(availableRegs) {}
 
    private:
-    void runOnMachineFunction(MachineFunction&) override;
-    void doFinalization(ir::Module&) override {
+    bool runOnMachineFunction(MachineFunction&) override;
+    bool doFinalization(ir::Module&) override {
         setAnalysis<RegisterAllocationAnalysis>(std::move(allocationAnalysis));
+        return false;
     }
 
     void computeGlobalLiveness();      // out: livenesses

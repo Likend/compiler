@@ -29,7 +29,7 @@ class IRTranslator final : public MachineFunctionPass {
     Register getOrCreateVReg(const ir::Value*);
     void     AssignVReg(const ir::Value*, Register);
 
-    void runOnMachineFunction(MachineFunction& mf) override;
+    bool runOnMachineFunction(MachineFunction& mf) override;
 
     void translateBasicBlock(const ir::BasicBlock*);
     void translateInstruction(const ir::Instruction*);

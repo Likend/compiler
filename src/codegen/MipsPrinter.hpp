@@ -17,7 +17,7 @@ class MipsPrinterPass final : public ir::ImmutablePass {
    public:
     MipsPrinterPass(std::ostream& os) : os(os) {}
 
-    void doInitialization(ir::Module&) override;
+    bool doInitialization(ir::Module&) override;
 
    private:
     std::ostream& os;

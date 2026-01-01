@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iterator>
 #include <utility>
 
 template <typename IteratorT>
@@ -7,7 +8,8 @@ class iterator_range {
     IteratorT begin_it, end_it;
 
    public:
-    using iterator = IteratorT;
+    using iterator   = IteratorT;
+    using value_type = typename std::iterator_traits<iterator>::value_type;
     iterator_range(IteratorT begin_it, IteratorT end_it)
         : begin_it(std::move(begin_it)), end_it(std::move(end_it)) {}
 

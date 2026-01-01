@@ -14,7 +14,7 @@
 
 using namespace codegen;
 
-void ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
+bool ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
     auto                  allocation = allocationAnalysis->at(&mf);
     std::vector<Register> regs;
     regs.reserve(mf.regInfos.size());
@@ -35,7 +35,6 @@ void ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
                 use->ChangeTo({RegisterOpKind{targetReg}});
                 targetInfo.addUse(*use);
             }
-
         } else {
             stackRegObjectId[sourceVReg] =
                 static_cast<int64_t>(mf.CreateStackObject(32));
@@ -77,4 +76,6 @@ void ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
             }
         }
     }
+
+    return true;
 }

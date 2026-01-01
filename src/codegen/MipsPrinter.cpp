@@ -74,7 +74,7 @@ static std::ostream& operator<<(std::ostream& os, const MachineOperand& op) {
 
 using namespace mips_printer;
 
-void MipsPrinterPass::doInitialization(ir::Module& m) {
+bool MipsPrinterPass::doInitialization(ir::Module& m) {
     auto& module = getAnalysis<MachineModule>();
 
     os << ".data\n";
@@ -153,6 +153,8 @@ void MipsPrinterPass::doInitialization(ir::Module& m) {
             printFunction(*mf);
         }
     }
+
+    return false;
 }
 
 void printEscapedString(std::string_view str, std::ostream& os) {

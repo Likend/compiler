@@ -47,5 +47,9 @@ class User : public Value {
     const_op_range     operands() const {
         return const_op_range{op_begin(), op_end()};
     }
+
+    void dropAllReferences() {
+        for (Use& use : operands()) use.set(nullptr);
+    }
 };
 }  // namespace ir

@@ -16,11 +16,11 @@
 
 using namespace codegen;
 
-void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
+bool FillFramePass::runOnMachineFunction(MachineFunction& mf) {
     std::map<Register, int64_t> regToStack;
 
     auto find = findFirstInstr(mf);
-    if (!find.has_value()) return;  // empty function
+    if (!find.has_value()) return false;  // empty function
 
     auto               firstInstr = *find;
     MachineBasicBlock& firstBB    = *firstInstr->parent();
@@ -167,4 +167,6 @@ void FillFramePass::runOnMachineFunction(MachineFunction& mf) {
     }
 
     lastBB.emplace(lastInstr, DESC_RET);
+
+    return true;
 }

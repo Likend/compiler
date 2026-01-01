@@ -78,9 +78,9 @@ class Pass {
     Pass(const Pass&)            = delete;
     Pass& operator=(const Pass&) = delete;
 
-    virtual void doInitialization(Module&) {};
-    virtual void doFinalization(Module&) {};
-    virtual void runOnModule(Module&) = 0;
+    virtual bool doInitialization(Module&) { return false; };
+    virtual bool doFinalization(Module&) { return false; };
+    virtual bool runOnModule(Module&) = 0;
 
    protected:
     template <typename AnalysisT, typename... ArgsT>
@@ -101,14 +101,14 @@ class Pass {
 
 class ImmutablePass : public Pass {
    private:
-    void runOnModule(Module&) override {}
+    bool runOnModule(Module&) override { return false; }
 };
 
 class FunctionPass : public Pass {
    public:
-    virtual void runOnFunction(Function&) = 0;
+    virtual bool runOnFunction(Function&) = 0;
 
    private:
-    void runOnModule(Module&) override;
+    bool runOnModule(Module&) override;
 };
 }  // namespace ir

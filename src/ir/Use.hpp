@@ -9,7 +9,9 @@ class Use {
 
    public:
     Use(const Use& U) = default;
-           operator Value*() const { return val; }
+
+    operator Value*() const { return val; }
+
     Value* get() const { return val; }
     User*  getUser() const { return parent; }
     void   set(Value* val);

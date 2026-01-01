@@ -17,7 +17,7 @@
 
 using namespace codegen;
 
-void LinerScanRegisterAllocPass::runOnMachineFunction(MachineFunction& mf) {
+bool LinerScanRegisterAllocPass::runOnMachineFunction(MachineFunction& mf) {
     this->curFunc = &mf;
     allocation.clear();
     physRegPool.reset();
@@ -72,6 +72,7 @@ void LinerScanRegisterAllocPass::runOnMachineFunction(MachineFunction& mf) {
     }
 
     allocationAnalysis.emplace(curFunc, std::move(allocation));
+    return false;
 }
 
 void LinerScanRegisterAllocPass::computeGlobalLiveness() {

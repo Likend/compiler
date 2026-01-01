@@ -17,13 +17,15 @@ class ReplaceRegisterPass final : public MachineFunctionPass {
         : regPool(spareRegister) {}
 
    private:
-    void doInitialization(ir::Module&) override {
+    bool doInitialization(ir::Module&) override {
         allocationAnalysis = &getAnalysis<RegisterAllocationAnalysis>();
+        return false;
     }
-    void doFinalization(ir::Module&) override {
+    bool doFinalization(ir::Module&) override {
         removeAnalysis<RegisterAllocationAnalysis>();
+        return false;
     }
-    void runOnMachineFunction(MachineFunction&) override;
+    bool runOnMachineFunction(MachineFunction&) override;
 
     Register allocReg(size_t i) {
         ASSERT(i < regPool.size());

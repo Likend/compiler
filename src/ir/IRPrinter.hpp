@@ -11,7 +11,7 @@ class IRPrinterPass final : public ImmutablePass {
    public:
     IRPrinterPass(std::ostream& os) : os(os) {}
 
-    void doInitialization(Module&) override;
+    bool doInitialization(Module&) override;
 
    private:
     std::ostream& os;

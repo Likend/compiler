@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -9,6 +10,7 @@
 #include "ir/User.hpp"
 #include "ir/ValueSymbolTable.hpp"
 #include "util/assert.hpp"
+#include "util/iterator_range.hpp"
 
 namespace ir {
 class BasicBlock;
@@ -21,6 +23,7 @@ class Instruction : public User, public ValueNode<Instruction, BasicBlock> {
     Instruction(const Instruction&)            = delete;
     Instruction& operator=(const Instruction&) = delete;
 
+    virtual bool             isTerminator() const { return false; }
     virtual std::string_view getOpcodeName() const = 0;
 };
 
@@ -232,10 +235,112 @@ class CallInst final : public Instruction {
     std::string_view getOpcodeName() const override { return "call"; }
 };
 
-class ReturnInst final : public Instruction {
+class TerminatorInst : public Instruction {
+   public:
+    using Instruction::Instruction;
+
+    bool isTerminator() const override { return true; }
+
+    virtual unsigned    getNumSuccessors() const       = 0;
+    virtual BasicBlock* getSuccessor(unsigned i) const = 0;
+
+   private:
+    template <typename TerminatorInstT, typename BasicBlockT>
+    struct succ_iterator_impl {
+        using iterator_category = std::random_access_iterator_tag;
+        using difference_type   = int;
+        using value_type        = BasicBlockT;
+        using pointer           = value_type*;
+        using reference         = value_type&;
+
+       private:
+        using Self = succ_iterator_impl;
+
+       public:
+        succ_iterator_impl() = default;
+
+       private:
+        friend class TerminatorInst;
+        succ_iterator_impl(TerminatorInstT* inst, unsigned idx = 0)
+            : inst(inst), idx(static_cast<int>(idx)) {}
+
+       public:
+        reference operator*() const { return *inst->getSuccessor(idx); }
+        pointer   operator->() const { return &operator*(); }
+        bool      operator<(const Self& rhs) const { return idx < rhs.idx; }
+        bool      operator==(const Self& rhs) const { return idx == rhs.idx; }
+        bool      operator!=(const Self& rhs) const { return idx != rhs.idx; }
+
+        difference_type operator-(const Self& rhs) const {
+            return idx - rhs.idx;
+        }
+
+        Self& operator+=(difference_type n) {
+            idx += n;
+            ASSERT_WITH(index_is_valid(), "Iterator index out of bound");
+            return *this;
+        }
+        Self& operator-=(difference_type n) { return operator+=(-n); }
+
+        Self operator+(difference_type n) {
+            Self tmp = *this;
+            this += n;
+            return this;
+        }
+
+        Self operator-(difference_type n) {
+            Self tmp = *this;
+            this -= n;
+            return this;
+        }
+
+        Self& operator++() { return operator+=(1); }
+        Self& operator--() { return operator-=(1); }
+
+        Self operator++(int) {
+            Self tmp = *this;
+            ++*this;
+            return tmp;
+        }
+
+        Self operator--(int) {
+            Self tmp = *this;
+            --*this;
+            return tmp;
+        }
+
+       private:
+        TerminatorInstT* inst = nullptr;
+        int              idx  = 0;
+
+        bool index_is_valid() {
+            return idx >= 0 &&
+                   static_cast<unsigned>(idx) <= inst->getNumSuccessors();
+        }
+    };
+
+   public:
+    // clang-format off
+    using succ_iterator       = succ_iterator_impl<TerminatorInst, BasicBlock>;
+    using const_succ_iterator = succ_iterator_impl<const Instruction, const BasicBlock>;
+    using succ_range          = iterator_range<succ_iterator>;
+    using const_succ_range    = iterator_range<const_succ_iterator>;
+
+    succ_iterator       succ_begin()       { return {this}; }
+    const_succ_iterator succ_begin() const { return {this}; }
+    succ_iterator       succ_end()         { return {this, getNumSuccessors()}; }
+    const_succ_iterator succ_end()   const { return {this, getNumSuccessors()}; }
+    succ_range          successors()       { return {succ_begin(), succ_end()}; }
+    const_succ_range    successors() const { return {succ_begin(), succ_end()}; }
+    bool                succ_empty() const { return getNumSuccessors() == 0; }
+    size_t              succ_size()  const { return getNumSuccessors(); }
+    // clang-format on
+};
+
+class ReturnInst final : public TerminatorInst {
    public:
     ReturnInst(LLVMContext& c, Value* retVal)
-        : Instruction(Type::getVoidTy(c), retVal ? 1 : 0) {
+        : TerminatorInst(Type::getVoidTy(c), retVal ? 1 : 0) {
         if (retVal) setOperand(0, retVal);
     }
 
@@ -243,10 +348,15 @@ class ReturnInst final : public Instruction {
         return getNumOperands() != 0 ? getOperand(0) : nullptr;
     }
 
+    bool isTerminator() const override { return true; }
+
     std::string_view getOpcodeName() const override { return "ret"; }
+
+    unsigned    getNumSuccessors() const override { return 0; }
+    BasicBlock* getSuccessor(unsigned) const override { UNREACHABLE(); }
 };
 
-class BranchInst final : public Instruction {
+class BranchInst final : public TerminatorInst {
    public:
     BranchInst(BasicBlock* ifTrue, BasicBlock* ifFalse, Value* cond);
 
@@ -258,20 +368,24 @@ class BranchInst final : public Instruction {
     Value* getCondition() const {
         ASSERT_WITH(isConditional(),
                     "Cannot get condition of an uncond branch!");
-        return getOperand(0);
+        return getOperand(2);
     }
 
     void setCondition(Value* v) {
         ASSERT_WITH(isConditional(),
                     "Cannot set condition of unconditional branch!");
-        setOperand(0, v);
+        setOperand(2, v);
     }
 
-    // 以下不是 llvm 中的函数
     BasicBlock* getTrueBB() const;
     BasicBlock* getFalseBB() const;
 
+    bool isTerminator() const override { return true; }
+
     std::string_view getOpcodeName() const override { return "br"; }
+
+    unsigned getNumSuccessors() const override { return 1 + isConditional(); }
+    BasicBlock* getSuccessor(unsigned i) const override;
 };
 
 class CastInst : public UnaryInstruction {

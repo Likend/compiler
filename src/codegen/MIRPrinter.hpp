@@ -16,7 +16,7 @@ class MIRPrinterPass final : public ir::ImmutablePass {
    public:
     MIRPrinterPass(std::ostream& os) : os(os) {}
 
-    void doInitialization(ir::Module&) override;
+    bool doInitialization(ir::Module&) override;
 
    private:
     std::ostream& os;

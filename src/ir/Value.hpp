@@ -36,6 +36,7 @@ class Value {
 
     void addUse(Use& user);
 
+   private:
     template <typename UseT>  // One of "Use" and "const Use"
     class use_iterator_impl {
         friend class Value;
@@ -74,10 +75,12 @@ class Value {
               typename UseT>   // UseT: one of "Use" and "const Use"
     class user_iterator_impl
         : public iterator_transform<user_iterator_impl<UserT, UseT>,
-                                    use_iterator_impl<UseT>, UserT*> {
-        UserT* transform(Use& u) { return u.getUser(); }
+                                    use_iterator_impl<UseT>, UserT> {
+       public:
+        UserT& transform(Use& u) const { return *u.getUser(); }
     };
 
+   public:
     using use_iterator        = use_iterator_impl<Use>;
     using const_use_iterator  = use_iterator_impl<const Use>;
     using user_iterator       = user_iterator_impl<User, Use>;
@@ -89,18 +92,22 @@ class Value {
 
     bool use_empty() const { return useList == nullptr; }
 
-    use_iterator       use_begin() { return {useList}; }
-    const_use_iterator use_begin() const { return {useList}; }
-    use_iterator       use_end() { return {}; }
-    const_use_iterator use_end() const { return {}; }
-    use_range          uses() { return {use_begin(), use_end()}; }
-    const_use_range    uses() const { return {use_begin(), use_end()}; }
+    // clang-format off
+    use_iterator        use_begin()        { return {useList}; }
+    const_use_iterator  use_begin()  const { return {useList}; }
+    use_iterator        use_end()          { return {}; }
+    const_use_iterator  use_end()    const { return {}; }
+    use_range           uses()             { return {use_begin(), use_end()}; }
+    const_use_range     uses()       const { return {use_begin(), use_end()}; }
 
-    user_iterator       user_begin() { return {use_begin()}; }
+    user_iterator       user_begin()       { return {use_begin()}; }
     const_user_iterator user_begin() const { return {use_begin()}; }
-    user_iterator       user_end() { return {}; }
-    const_user_iterator user_end() const { return {}; }
-    user_range          users() { return {user_begin(), user_end()}; }
-    const_user_range    users() const { return {user_begin(), user_end()}; }
+    user_iterator       user_end()         { return {}; }
+    const_user_iterator user_end()   const { return {}; }
+    user_range          users()            { return {user_begin(), user_end()}; }
+    const_user_range    users()      const { return {user_begin(), user_end()}; }
+    // clang-format on
+
+    void replaceAllUsesWith(Value* newValue);
 };
 }  // namespace ir

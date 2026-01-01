@@ -43,7 +43,7 @@ void IRTranslator::AssignVReg(const ir::Value* val, Register reg) {
     it->second = reg;
 }
 
-void IRTranslator::runOnMachineFunction(MachineFunction& mf) {
+bool IRTranslator::runOnMachineFunction(MachineFunction& mf) {
     currentFunction = &mf;
 
     const ir::Function& function = mf.getFunction();
@@ -58,6 +58,8 @@ void IRTranslator::runOnMachineFunction(MachineFunction& mf) {
     for (const ir::BasicBlock& bb : function) {
         translateBasicBlock(&bb);
     }
+
+    return true;
 }
 
 void IRTranslator::translateBasicBlock(const ir::BasicBlock* bb) {

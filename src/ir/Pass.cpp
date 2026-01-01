@@ -4,10 +4,12 @@
 
 using namespace ir;
 
-void FunctionPass::runOnModule(Module& module) {
+bool FunctionPass::runOnModule(Module& module) {
+    bool changed = false;
     for (auto& function : module) {
-        runOnFunction(function);
+        changed = changed | runOnFunction(function);
     }
+    return changed;
 }
 
 void PassManager::run(Module& module) {

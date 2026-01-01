@@ -33,12 +33,13 @@ class MachineModule {
 };
 
 class MachineModuleAnalysisPass final : public ir::ImmutablePass {
-    void doInitialization(ir::Module& module) override {
+    bool doInitialization(ir::Module& module) override {
         setAnalysis<MachineModule>(static_cast<const ir::Module&>(module));
         auto& mm = getAnalysis<MachineModule>();
         for (auto& function : module) {
             mm.getOrCreateMachineFunction(function);
         }
+        return false;
     }
 };
 }  // namespace codegen

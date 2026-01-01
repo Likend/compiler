@@ -15,7 +15,7 @@ namespace codegen {
 using namespace std::string_literals;
 
 class FillFramePass final : public MachineFunctionPass {
-    void runOnMachineFunction(MachineFunction& mf) override;
+    bool runOnMachineFunction(MachineFunction& mf) override;
 
     std::optional<MachineBasicBlock::iterator> findFirstInstr(
         MachineFunction& mf) {

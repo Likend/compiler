@@ -8,9 +8,9 @@ class MachineFunction;
 
 class MachineFunctionPass : public ir::FunctionPass {
    public:
-    virtual void runOnMachineFunction(MachineFunction&) = 0;
+    virtual bool runOnMachineFunction(MachineFunction&) = 0;
 
    private:
-    void runOnFunction(ir::Function& f) override;
+    bool runOnFunction(ir::Function& f) override;
 };
 }  // namespace codegen

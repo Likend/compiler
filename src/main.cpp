@@ -15,7 +15,7 @@
 #include "codegen/ReplaceRegister.hpp"
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
-#include "util/assert.hpp"
+#include "opt/SimplifyCFG.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
 #define DEBUG_TOKEN_TYPE_NAME
@@ -76,7 +76,6 @@ void print_symbol_record(std::vector<SymbolRecord> records) {
 }
 
 int main() {
-    using namespace ir;
     using namespace codegen;
 
     if (std::optional<std::string> src = read_file()) {
@@ -92,26 +91,26 @@ int main() {
             Visitor visitor{*ast};
             print_symbol_record(visitor.records);
 
-            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
-            ASSERT_WITH(ir_file, "File llvm_ir.txt not found.");
-            std::ofstream mir_file{"mir.txt", std::ios_base::out};
-            ASSERT_WITH(mir_file, "File mir.txt not found.");
+            std::ofstream   ir1_file{"llvm_ir.txt", std::ios_base::out};
+            std::ofstream   ir2_file{"llvm_ir2.txt", std::ios_base::out};
+            std::ofstream   mir_file{"mir.txt", std::ios_base::out};
             std::ofstream   mir1_file{"mir1.txt", std::ios_base::out};
             std::ofstream   mips_file{"mips.txt", std::ios_base::out};
             ir::PassManager pm{
-                new IRPrinterPass{ir_file},
-                new MachineModuleAnalysisPass{},
-                new IRTranslator{},
-                new MIRPrinterPass{mir_file},
-                new LinerScanRegisterAllocPass{REG_T0, REG_T1, REG_T2, REG_T3,
-                                               REG_T4, REG_T5, REG_T6, REG_T7,
-                                               REG_S0, REG_S1, REG_S2, REG_S3,
-                                               REG_S4, REG_S5, REG_S6, REG_S7},
-                // new LinerScanRegisterAllocPass{REG_T0, REG_T1},
-                new ReplaceRegisterPass{REG_T8, REG_T9},
-                new MIRPrinterPass{mir1_file},
-                new FillFramePass{},
-                new MipsPrinterPass{mips_file},
+                new ir::IRPrinterPass{ir1_file},
+                new opt::SimplifyCFGPass{},
+                new ir::IRPrinterPass{ir2_file},
+                new codegen::MachineModuleAnalysisPass{},
+                new codegen::IRTranslator{},
+                new codegen::MIRPrinterPass{mir_file},
+                new codegen::LinerScanRegisterAllocPass{
+                    REG_T0, REG_T1, REG_T2, REG_T3, REG_T4, REG_T5, REG_T6,
+                    REG_T7, REG_S0, REG_S1, REG_S2, REG_S3, REG_S4, REG_S5,
+                    REG_S6, REG_S7},
+                new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
+                new codegen::MIRPrinterPass{mir1_file},
+                new codegen::FillFramePass{},
+                new codegen::MipsPrinterPass{mips_file},
             };
             visitor.runPass(pm);
         }

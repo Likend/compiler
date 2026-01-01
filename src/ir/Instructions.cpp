@@ -56,19 +56,19 @@ CallInst::CallInst(FunctionType* ty, Value* func,
 }
 
 BranchInst::BranchInst(BasicBlock* ifTrue, BasicBlock* ifFalse, Value* cond)
-    : Instruction(Type::getVoidTy(ifTrue->getContext()), 3) {
-    setOperand(2, ifTrue);   // numOperands -1
+    : TerminatorInst(Type::getVoidTy(ifTrue->getContext()), 3) {
+    setOperand(0, ifTrue);   // numOperands -1
     setOperand(1, ifFalse);  // numOperands -2
-    setOperand(0, cond);     // numOperands -3
+    setOperand(2, cond);     // numOperands -3
 }
 
 BranchInst::BranchInst(BasicBlock* ifTrue)
-    : Instruction(Type::getVoidTy(ifTrue->getContext()), 1) {
+    : TerminatorInst(Type::getVoidTy(ifTrue->getContext()), 1) {
     setOperand(0, ifTrue);  // numOperands -1
 }
 
 BasicBlock* BranchInst::getTrueBB() const {
-    return dynamic_cast<BasicBlock*>(getOperand(getNumOperands() - 1));
+    return dynamic_cast<BasicBlock*>(getOperand(0));
 }
 
 BasicBlock* BranchInst::getFalseBB() const {
@@ -76,4 +76,9 @@ BasicBlock* BranchInst::getFalseBB() const {
         return dynamic_cast<BasicBlock*>(getOperand(1));
     else
         return nullptr;
+}
+
+BasicBlock* BranchInst::getSuccessor(unsigned i) const {
+    ASSERT_WITH(i < getNumSuccessors(), "Successor # out of range for Branch!");
+    return dynamic_cast<BasicBlock*>(getOperand(i));
 }

@@ -233,6 +233,12 @@ class IntrusiveIterator : public intrusive_list_detail::IntrusiveListIterBase<
 };
 
 template <typename T>
+IntrusiveIterator(T&) -> IntrusiveIterator<T>;
+
+template <typename T>
+IntrusiveIterator(T*) -> IntrusiveIterator<T>;
+
+template <typename T>
 class IntrusiveReverseIterator
     : public intrusive_list_detail::IntrusiveListIterBase<
           T, IntrusiveReverseIterator<T>> {
@@ -250,6 +256,12 @@ class IntrusiveReverseIterator
    public:
     using Base::Base;
 };
+
+template <typename T>
+IntrusiveReverseIterator(T&) -> IntrusiveReverseIterator<T>;
+
+template <typename T>
+IntrusiveReverseIterator(T*) -> IntrusiveReverseIterator<T>;
 
 template <typename T>
 class IntrusiveList {
@@ -361,18 +373,25 @@ class IntrusiveList {
         return it;
     }
 
-    reverse_iterator erase(reverse_iterator it) {
-        ASSERT(!empty());
-        reverse_iterator cur = it++;
-        cur.unlink();
-        delete &*cur;
-        return it;
-    }
-
     void clear() {
         iterator it = begin();
         while (it != end()) {
             it = erase(it);
+        }
+    }
+
+    void splice(iterator pos, IntrusiveList& other) {
+        return splice(pos, other, other.begin(), other.end());
+    }
+    void splice(iterator pos, IntrusiveList& other, iterator first) {
+        return splice(pos, other, first, other.end());
+    }
+    void splice(iterator pos, [[maybe_unused]] IntrusiveList& other,
+                iterator first, iterator last) {
+        for (auto it = first; it != last;) {
+            iterator cur = it++;
+            cur.unlink();
+            insert(pos, &*cur);
         }
     }
 
