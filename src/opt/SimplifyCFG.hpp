@@ -5,9 +5,8 @@
 #include "ir/Pass.hpp"
 
 namespace opt {
-
 class SimplifyCFGPass final : public ir::FunctionPass {
    public:
-    bool runOnFunction(ir::Function& f) override;
+    bool runOnFunction(ir::Function&) override;
 };
 }  // namespace opt

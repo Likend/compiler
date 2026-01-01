@@ -37,23 +37,6 @@ static typename Range::value_type* getUniqueItem(const Range& rg) {
     return item;
 }
 
-static bool RemoveDuplicateTerminator(ir::BasicBlock* bb) {
-    auto it = bb->begin();
-    for (; it != bb->end(); ++it) {
-        if (it->isTerminator()) {
-            break;
-        }
-    }
-    ++it;
-    if (it == bb->end()) return false;
-    for (; it != bb->end();) {
-        ASSERT(it->use_empty());
-        it->dropAllReferences();
-        it = bb->erase(it);
-    }
-    return true;
-}
-
 static bool RemoveUnreachableBlocks(ir::Function& f) {
     bool changed = false;
 
@@ -194,12 +177,8 @@ bool SimplifyCFGPass::runOnFunction(ir::Function& f) {
     if (f.empty()) return false;
 
     bool changed = false;
-    for (ir::BasicBlock& bb : f) {
-        changed |= RemoveDuplicateTerminator(&bb);
-    }
 
     changed |= RemoveUnreachableBlocks(f);
-
     changed |= iterativelySimplifyCFG(f);
 
     if (!changed) return false;
