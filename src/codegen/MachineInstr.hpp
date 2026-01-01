@@ -54,9 +54,7 @@ class MachineInstrNode : public IntrusiveNodeWithParent<MachineBasicBlock> {
     static void link_between(MachineInstrNode* curr, MachineInstrNode* prev,
                              MachineInstrNode* next);
 
-    static void unlink(MachineInstrNode* curr) { // todo
-        IntrusiveNodeWithParent<MachineBasicBlock>::unlink(curr);
-    }
+    static void unlink(MachineInstrNode* curr);
 
     static MachineInstrNode* create_sentinel(MachineBasicBlock& parent) {
         return new MachineInstrNode{&parent};

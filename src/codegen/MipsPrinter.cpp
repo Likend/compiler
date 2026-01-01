@@ -288,6 +288,12 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
         case DESC_MULTI.opcode:
             os << "mul " << Binary{instr};
             break;
+        case DESC_SLL.opcode:
+            os << "sll " << Binary{instr};
+            break;
+        case DESC_SRL.opcode:
+            os << "srl" << Binary{instr};
+            break;
 
         case DESC_RET.opcode:
             os << "jr $ra";

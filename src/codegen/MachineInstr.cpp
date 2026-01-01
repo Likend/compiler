@@ -33,12 +33,27 @@ void MachineInstrNode::link_between(MachineInstrNode* curr,
     auto* self = static_cast<MachineInstr*>(curr);
 
     MachineFunction* mf = curr->parent()->parent();
-    size_t           i  = 0;
     for (MachineOperand& op : self->ops) {
-        if (self->operandNoIsDef(i))
+        if (self->operandIsDef(op))
             mf->addDef(op);
-        else if (self->operandNoIsUse(i))
+        else if (self->operandIsUse(op))
             mf->addUse(op);
-        i++;
     }
+}
+
+void MachineInstrNode::unlink(MachineInstrNode* curr) {
+    auto* self = static_cast<MachineInstr*>(curr);
+
+    if (MachineBasicBlock* mbb = curr->parent()) {
+        if (MachineFunction* mf = mbb->parent()) {
+            for (MachineOperand& op : self->ops) {
+                if (self->operandIsDef(op))
+                    mf->removeDef(op);
+                else if (self->operandIsUse(op))
+                    mf->removeUse(op);
+            }
+        }
+    }
+
+    IntrusiveNodeWithParent<MachineBasicBlock>::unlink(curr);
 }

@@ -338,7 +338,7 @@ class IntrusiveList {
                     static_cast<intrusive_node*>(node));
     }
 
-    iterator insert(const_iterator pos, T* node) {
+    iterator insert(iterator pos, T* node) {
         link_before(static_cast<intrusive_node*>(const_cast<T*>(&*pos)),
                     static_cast<intrusive_node*>(node));
         return iterator{*node};
@@ -348,7 +348,7 @@ class IntrusiveList {
     void pop_front() { erase(begin()); }
 
     template <class... Args>
-    iterator emplace(const_iterator pos, Args&&... args) {
+    iterator emplace(iterator pos, Args&&... args) {
         T* node = new T{std::forward<Args>(args)...};
         return insert(pos, node);
     }

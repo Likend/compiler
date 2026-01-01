@@ -73,14 +73,13 @@ class MachineFunction : public IntrusiveList<MachineBasicBlock> {
         }
     }
 
-    void addDef(MachineOperand& op) {
-        // auto [it, inserted] = regInfos.try_emplace(reg, RegisterInfo{});
-        regInfos[op.getRegister()].addDef(op);
+    void addDef(MachineOperand& op) { regInfos[op.getRegister()].addDef(op); }
+    void addUse(MachineOperand& op) { regInfos[op.getRegister()].addUse(op); }
+    void removeDef(MachineOperand& op) {
+        regInfos[op.getRegister()].removeDef(op);
     }
-
-    void addUse(MachineOperand& op) {
-        // auto [it, inserted] = regInfos.try_emplace(reg, RegisterInfo{});
-        regInfos[op.getRegister()].addUse(op);
+    void removeUse(MachineOperand& op) {
+        regInfos[op.getRegister()].removeUse(op);
     }
 };
 }  // namespace codegen
