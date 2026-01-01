@@ -83,7 +83,7 @@ class MachineInstr : public MachineInstrNode {
 
     ~MachineInstr();
 
-    uint16_t              getOpcode() const { return desc.opcode; }
+    unsigned              getOpcode() const { return desc.opcode; }
     size_t                getNumOperands() const { return desc.operandsNum; }
     MachineOperand&       getOperand(size_t i) { return ops[i]; }
     const MachineOperand& getOperand(size_t i) const { return ops[i]; }

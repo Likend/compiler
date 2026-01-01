@@ -6,6 +6,7 @@
 #include <string>
 
 #include "codegen/MachineModule.hpp"
+#include "codegen/pass/ConstantPropagation.hpp"
 #include "codegen/pass/FillFrame.hpp"
 #include "codegen/pass/IRTranslator.hpp"
 #include "codegen/pass/LinerScanRegisterAlloc.hpp"
@@ -109,8 +110,9 @@ int main() {
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
-                new codegen::MipsMachineMulDivOpt{},
+                new codegen::ConstantPropagation{},
                 new codegen::MIRPrinterPass{mir1_file},
+                new codegen::MipsMachineMulDivOpt{},
                 new codegen::MovePropagationPass{},
                 new codegen::MIRPrinterPass{mir2_file},
 
