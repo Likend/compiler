@@ -12,6 +12,7 @@
 #include "codegen/MipsMachineMulDivOpt.hpp"
 #include "codegen/MipsPrinter.hpp"
 #include "codegen/MIRPrinter.hpp"
+#include "codegen/MovePropagation.hpp"
 #include "codegen/Register.hpp"
 #include "codegen/ReplaceRegister.hpp"
 #include "ir/IRPrinter.hpp"
@@ -97,6 +98,7 @@ int main() {
             std::ofstream ir2_file{"llvm_ir2.txt", std::ios_base::out};
             std::ofstream mir_file{"mir.txt", std::ios_base::out};
             std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
+            std::ofstream mir2_file{"mir2.txt", std::ios_base::out};
             std::ofstream mips_file{"mips.txt", std::ios_base::out};
 
             ir::PassManager pm{
@@ -109,6 +111,8 @@ int main() {
                 new codegen::MIRPrinterPass{mir_file},
                 new codegen::MipsMachineMulDivOpt{},
                 new codegen::MIRPrinterPass{mir1_file},
+                new codegen::MovePropagationPass{},
+                new codegen::MIRPrinterPass{mir2_file},
 
                 // not ssa from bellow
                 new codegen::LinerScanRegisterAllocPass{

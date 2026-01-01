@@ -76,10 +76,20 @@ class MachineFunction : public IntrusiveList<MachineBasicBlock> {
     void addDef(MachineOperand& op) { regInfos[op.getRegister()].addDef(op); }
     void addUse(MachineOperand& op) { regInfos[op.getRegister()].addUse(op); }
     void removeDef(MachineOperand& op) {
-        regInfos[op.getRegister()].removeDef(op);
+        auto  it   = regInfos.find(op.getRegister());
+        auto& info = it->second;
+        info.removeDef(op);
+        if (info.def_empty() && info.use_empty()) {
+            regInfos.erase(it);
+        }
     }
     void removeUse(MachineOperand& op) {
-        regInfos[op.getRegister()].removeUse(op);
+        auto  it   = regInfos.find(op.getRegister());
+        auto& info = it->second;
+        info.removeUse(op);
+        if (info.def_empty() && info.use_empty()) {
+            regInfos.erase(it);
+        }
     }
 };
 }  // namespace codegen

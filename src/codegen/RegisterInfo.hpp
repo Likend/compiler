@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 #include <vector>
 
 #include "util/assert.hpp"
@@ -41,6 +42,7 @@ class RegisterInfo {
     mop_range          use()             { return {use_begin(), use_end()}; }
     const_mop_range    use()       const { return {use_begin(), use_end()}; }
     bool               use_empty() const { return useList.empty(); }
+    size_t             uses()      const { return useList.size(); }
 
     mop_iterator       def_begin()       { return defList.begin(); }
     const_mop_iterator def_begin() const { return defList.begin(); }
@@ -49,6 +51,7 @@ class RegisterInfo {
     mop_range          def()             { return {def_begin(), def_end()}; }
     const_mop_range    def()       const { return {def_begin(), def_end()}; }
     bool               def_empty() const { return defList.empty(); }
+    size_t             defs()      const { return defList.size(); }
     // clang-format on
 };
 

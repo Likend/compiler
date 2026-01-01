@@ -150,6 +150,10 @@ class MachineInstr : public MachineInstrNode {
         annotation = annotation.append(ann);
         annotation = annotation.append("; ");
     }
+
+    void changeOperand(const MachineOperand& opPosition, MachineOperandContent);
+
+    MachineFunction* getFunction();
 };
 
 #define HANDLE_DESC_DEF(opcode, name, def, use, other)               \
