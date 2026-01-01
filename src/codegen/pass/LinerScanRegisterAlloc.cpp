@@ -1,4 +1,4 @@
-#include "codegen/LinerScanRegisterAlloc.hpp"
+#include "codegen/pass/LinerScanRegisterAlloc.hpp"
 
 #include <algorithm>
 #include <cstddef>

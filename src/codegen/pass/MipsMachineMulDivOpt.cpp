@@ -1,4 +1,4 @@
-#include "codegen/MipsMachineMulDivOpt.hpp"
+#include "codegen/pass/MipsMachineMulDivOpt.hpp"
 
 #include <algorithm>
 #include <cmath>

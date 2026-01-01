@@ -26,7 +26,6 @@ list(REMOVE_ITEM SRCS src/main.cpp)
 
 add_library(Compiler_lib STATIC ${SRCS})
 target_compile_definitions(Compiler_lib PRIVATE DEBUG_TOKEN_TYPE_NAME)
-message(STATUS "Collected ${SRCS}")
 # target_link_libraries(Compiler_lib PRIVATE ${LLVM_LINK_LIBS})
 
 add_executable(Compiler src/main.cpp)

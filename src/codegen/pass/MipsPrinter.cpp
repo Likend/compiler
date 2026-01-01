@@ -1,4 +1,4 @@
-#include "codegen/MipsPrinter.hpp"
+#include "codegen/pass/MipsPrinter.hpp"
 
 #include <ostream>
 #include <variant>
@@ -8,8 +8,8 @@
 #include "codegen/MachineInstr.hpp"
 #include "codegen/MachineModule.hpp"
 #include "codegen/MachineOperand.hpp"
-#include "codegen/MipsPrinter.hpp"
-#include "codegen/MIRPrinter.hpp"
+#include "codegen/pass/MIRPrinter.hpp"
+#include "codegen/pass/MipsPrinter.hpp"
 #include "codegen/Register.hpp"
 #include "ir/Constants.hpp"
 #include "ir/Type.hpp"

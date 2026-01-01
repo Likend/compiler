@@ -2,7 +2,7 @@
 
 #include <initializer_list>
 
-#include "codegen/LinerScanRegisterAlloc.hpp"
+#include "codegen/pass/LinerScanRegisterAlloc.hpp"
 #include "codegen/MachineFunctionPass.hpp"
 #include "codegen/Register.hpp"
 #include "ir/Module.hpp"

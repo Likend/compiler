@@ -1,4 +1,4 @@
-#include "codegen/MovePropagation.hpp"
+#include "codegen/pass/MovePropagation.hpp"
 
 #include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineFunction.hpp"

@@ -1,4 +1,4 @@
-#include "codegen/MIRPrinter.hpp"
+#include "codegen/pass/MIRPrinter.hpp"
 
 #include <ostream>
 #include <variant>
@@ -7,7 +7,7 @@
 #include "codegen/MachineFunction.hpp"
 #include "codegen/MachineModule.hpp"
 #include "codegen/MachineOperand.hpp"
-#include "codegen/MipsPrinter.hpp"
+#include "codegen/pass/MipsPrinter.hpp"
 #include "codegen/Register.hpp"
 #include "util/Delimeter.hpp"
 #include "util/lambda_overload.hpp"

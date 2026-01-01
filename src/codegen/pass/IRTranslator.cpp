@@ -1,4 +1,4 @@
-#include "codegen/IRTranslator.hpp"
+#include "codegen/pass/IRTranslator.hpp"
 
 #include <cstdint>
 

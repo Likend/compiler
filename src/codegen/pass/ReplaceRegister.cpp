@@ -1,16 +1,16 @@
-#include "codegen/ReplaceRegister.hpp"
+#include "codegen/pass/ReplaceRegister.hpp"
 
 #include <algorithm>
 #include <iterator>
 #include <map>
 
-#include "codegen/LinerScanRegisterAlloc.hpp"
 #include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineFunction.hpp"
 #include "codegen/MachineInstr.hpp"
 #include "codegen/MachineOperand.hpp"
-#include "Register.hpp"
-#include "RegisterInfo.hpp"
+#include "codegen/pass/LinerScanRegisterAlloc.hpp"
+#include "codegen/Register.hpp"
+#include "codegen/RegisterInfo.hpp"
 
 using namespace codegen;
 
