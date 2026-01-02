@@ -204,6 +204,26 @@ struct RewriteInstruction<DESC_SDIV.opcode> : LatticeOperatorBaseRegReg {
     }
 };
 
+template <>
+struct RewriteInstruction<DESC_BEQZ.opcode> : LatticeOperatorBase {
+    using LatticeOperatorBase::LatticeOperatorBase;
+
+    bool operator()() {
+        Register           src = mi.getOperand(0).getRegister();
+        MachineBasicBlock* mbb = mi.getOperand(1).getMachineBasicBlock();
+
+        const Lattice& lat = lattices.at(src);
+        if (lat.type == Lattice::Constant) {
+            if (lat.constant == 0) {
+                mbb->emplace(mi, DESC_JUMP, MachineBBOpKind{mbb});
+            }
+            mbb->erase(mi);
+            return true;
+        }
+        return false;
+    }
+};
+
 bool rewriteInstruction(MachineInstr& mi, const LatticeAnalysis& lattices) {
     MachineBasicBlock& mbb = *mi.parent();
 
@@ -247,6 +267,19 @@ struct LatticeEvaluate<DESC_LI.opcode> : LatticeOperatorBase {
     using LatticeOperatorBase::LatticeOperatorBase;
     Lattice operator()() {
         return {Lattice::Constant, mi.getOperand(1).getImmediate()};
+    }
+};
+
+template <>
+struct LatticeEvaluate<DESC_MOVE.opcode> : LatticeOperatorBase {
+    using LatticeOperatorBase::LatticeOperatorBase;
+    Lattice operator()() {
+        Register       src = mi.getOperand(1).getRegister();
+        const Lattice& lat = lattices.at(src);
+        if (src == REG_ZERO)
+            return {Lattice::Constant, 0};
+        else  // lat.type == Lattice::Constant or else
+            return lat;
     }
 };
 
