@@ -1,6 +1,5 @@
-#include "opt/RemoveUnse.hpp"
+#include "opt/RemoveUnuse.hpp"
 
-#include <iostream>
 #include <unordered_set>
 
 #include "ir/BasicBlock.hpp"
@@ -13,7 +12,7 @@
 using namespace ir;
 using namespace opt;
 
-bool RemoveUnsePass::runOnFunction(Function& f) {
+bool RemoveUnusePass::runOnFunction(Function& f) {
     bool changed = false;
 
     std::unordered_set<Value*> all;

@@ -14,13 +14,14 @@
 #include "codegen/pass/MipsPrinter.hpp"
 #include "codegen/pass/MIRPrinter.hpp"
 #include "codegen/pass/MovePropagation.hpp"
+#include "codegen/pass/RemoveUnuse.hpp"
 #include "codegen/pass/ReplaceRegister.hpp"
 #include "codegen/Register.hpp"
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
 #include "ir/WellForm.hpp"
 #include "opt/MemToReg.hpp"
-#include "opt/RemoveUnse.hpp"
+#include "opt/RemoveUnuse.hpp"
 #include "opt/SimplifyCFG.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -109,9 +110,9 @@ int main() {
                 new ir::IRPrinterPass{ir1_file},
                 new opt::MemToRegPass{},
                 new ir::IRPrinterPass{ir2_file},
-                new opt::RemoveUnsePass{},
+                new opt::RemoveUnusePass{},
                 new opt::SimplifyCFGPass{},
-                new opt::RemoveUnsePass{},
+                new opt::RemoveUnusePass{},
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
@@ -119,6 +120,7 @@ int main() {
                 new codegen::MIRPrinterPass{mir1_file},
                 new codegen::MipsMachineMulDivOptPass{},
                 new codegen::MovePropagationPass{},
+                new codegen::RemoveUnusePass{},
                 new codegen::MIRPrinterPass{mir2_file},
 
                 // not ssa from bellow
