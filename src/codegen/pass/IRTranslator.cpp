@@ -1,6 +1,7 @@
 #include "codegen/pass/IRTranslator.hpp"
 
 #include <cstdint>
+#include <cstdio>
 
 #include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineFunction.hpp"
@@ -183,8 +184,10 @@ void IRTranslator::translateGetElementPtrInst(const ir::GetElementPtrInst* i) {
         Register idxReg  = prepareReg(idx.get());
         Register multReg = currentFunction->CreateVReg();
 
-        currentBB->emplace_back(DESC_MULTI, multReg, idxReg,
+        Register tempReg = currentFunction->CreateVReg();
+        currentBB->emplace_back(DESC_LI, tempReg,
                                 ImmediateOpKind{static_cast<int64_t>(size)});
+        currentBB->emplace_back(DESC_MUL, multReg, idxReg, tempReg);
 
         Register addReg = currentFunction->CreateVReg();
         currentBB->emplace_back(DESC_ADD, addReg, multReg, ptrBase);

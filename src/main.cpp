@@ -10,7 +10,6 @@
 #include "codegen/pass/FillFrame.hpp"
 #include "codegen/pass/IRTranslator.hpp"
 #include "codegen/pass/LinerScanRegisterAlloc.hpp"
-#include "codegen/pass/MipsMachineMulDivOpt.hpp"
 #include "codegen/pass/MipsPrinter.hpp"
 #include "codegen/pass/MIRPrinter.hpp"
 #include "codegen/pass/MovePropagation.hpp"
@@ -119,7 +118,6 @@ int main() {
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
                 new codegen::ConstantPropagationPass{},
-                new codegen::MipsMachineMulDivOptPass{},
                 new codegen::MIRPrinterPass{mir1_file},
                 new codegen::MovePropagationPass{},
                 new codegen::MIRPrinterPass{mir2_file},

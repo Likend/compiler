@@ -8,8 +8,8 @@
 #include "codegen/MachineInstr.hpp"
 #include "codegen/MachineModule.hpp"
 #include "codegen/MachineOperand.hpp"
-#include "codegen/pass/MIRPrinter.hpp"
 #include "codegen/pass/MipsPrinter.hpp"
+#include "codegen/pass/MIRPrinter.hpp"
 #include "codegen/Register.hpp"
 #include "ir/Constants.hpp"
 #include "ir/Type.hpp"
@@ -244,6 +244,9 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
             os << "sw " << StoreLoadWord{instr};
             break;
 
+        case DESC_AND.opcode:
+            os << "and " << Binary{instr};
+            break;
         case DESC_ADD.opcode:
             os << "addu " << Binary{instr};
             break;
@@ -285,14 +288,27 @@ void MipsPrinterPass::printInstruction(MachineInstr& instr) {
         case DESC_ADDI.opcode:
             os << "addiu " << Binary{instr};
             break;
-        case DESC_MULTI.opcode:
-            os << "mul " << Binary{instr};
+        case DESC_ANDI.opcode:
+            os << "andi " << Binary{instr};
             break;
         case DESC_SLL.opcode:
             os << "sll " << Binary{instr};
             break;
         case DESC_SRL.opcode:
-            os << "srl" << Binary{instr};
+            os << "srl " << Binary{instr};
+            break;
+        case DESC_SRA.opcode:
+            os << "sra " << Binary{instr};
+            break;
+
+        case DESC_MULT.opcode:
+            os << "mult " << instr.getOperand(0) << ", " << instr.getOperand(1);
+            break;
+        case DESC_MFHI.opcode:
+            os << "mfhi " << instr.getOperand(0);
+            break;
+        case DESC_MFLO.opcode:
+            os << "mflo " << instr.getOperand(0);
             break;
 
         case DESC_RET.opcode:

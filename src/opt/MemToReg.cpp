@@ -1,7 +1,6 @@
 #include "opt/MemToReg.hpp"
 
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -15,37 +14,13 @@
 using namespace opt;
 using namespace ir;
 
-void check(Function& f) {
-    std::unordered_set<Value*> values;
-
-    for (BasicBlock& bb : f) {
-        for (Instruction& inst : bb) {
-            values.insert(&inst);
-        }
-    }
-
-    for (BasicBlock& bb : f) {
-        for (auto& user : bb.users()) {
-            ASSERT(values.count(&user));
-        }
-        for (Instruction& inst : bb) {
-            for (auto& user : inst.users()) {
-                ASSERT(values.count(&user));
-            }
-        }
-    }
-}
-
 bool MemToRegPass::runOnFunction(Function& f) {
-    check(f);
     if (f.empty()) return false;
 
     bool changed = false;
     for (BasicBlock& bb : f) {
         changed |= replaceInnerBlock(bb);
     }
-
-    check(f);
 
     changed |= replaceOnceStore(f);
 
@@ -150,8 +125,7 @@ bool MemToRegPass::replaceOnceStore(Function& f) {
             storeInst->dropAllReferences();
             storeInst->parent()->erase(storeInst);
         } else if (stores.size() == 0) {
-            loadInstReplacement =
-            PoisonValue::get(alloca->getAllocatedType());
+            loadInstReplacement = PoisonValue::get(alloca->getAllocatedType());
         }
         if (loadInstReplacement) {
             changed |= !loads.empty();

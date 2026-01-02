@@ -122,3 +122,5 @@ class PointerType : public Type {
                             unsigned     addrSpace);  // addrSpace is unused
 };
 }  // namespace ir
+
+std::ostream& operator<<(std::ostream& os, const ir::Type* type);

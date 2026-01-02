@@ -1,5 +1,6 @@
 #include "codegen/pass/ConstantPropagation.hpp"
 
+#include <cstdint>
 #include <queue>
 #include <unordered_map>
 
@@ -7,6 +8,7 @@
 #include "codegen/MachineFunction.hpp"
 #include "codegen/MachineInstr.hpp"
 #include "codegen/MachineOperand.hpp"
+#include "codegen/pass/MipsMachineMulDivOpt.hpp"
 #include "codegen/Register.hpp"
 #include "util/assert.hpp"
 
@@ -32,9 +34,10 @@ bool ConstantPropagationPass::runOnMachineFunction(MachineFunction& mf) {
     }
 
     std::queue<MachineInstr*> workList;
-    MachineBasicBlock&        entryBB = mf.front();
-    for (MachineInstr& mi : entryBB) {
-        workList.push(&mi);
+    for (MachineBasicBlock& mbb : mf) {
+        for (MachineInstr& mi : mbb) {
+            workList.push(&mi);
+        }
     }
 
     while (!workList.empty()) {
@@ -129,8 +132,13 @@ struct RewriteInstruction<DESC_ADD.opcode> : LatticeOperatorBaseRegReg {
                 (l1.type == Lattice::Constant) ? l1.constant : l2.constant;
             Register src = (l1.type == Lattice::Constant) ? src2 : src1;
 
-            if (val >= -32768 && val <= 32767) {
+            // 这里的 ADDI 实际上会替换成 addui
+            if (val > 0 && val < (1 << 16)) {
                 mbb.emplace(mi, DESC_ADDI, dest, src, ImmediateOpKind{val});
+                mbb.erase(mi);
+                return true;
+            } else if (val == 0) {
+                mbb.emplace(mi, DESC_MOVE, dest, src);
                 mbb.erase(mi);
                 return true;
             }
@@ -147,8 +155,13 @@ struct RewriteInstruction<DESC_SUB.opcode> : LatticeOperatorBaseRegReg {
             int64_t val    = l2.constant;
             int64_t negVal = -val;
 
-            if (negVal >= -32768 && negVal <= 32767) {
+            // 这里的 ADDI 实际上会替换成 addui
+            if (negVal >= 0 && negVal < (1 << 16)) {
                 mbb.emplace(mi, DESC_ADDI, dest, src1, ImmediateOpKind{negVal});
+                mbb.erase(mi);
+                return true;
+            } else if (val == 0) {
+                mbb.emplace(mi, DESC_MOVE, dest, src1);
                 mbb.erase(mi);
                 return true;
             }
@@ -167,30 +180,29 @@ struct RewriteInstruction<DESC_MUL.opcode> : LatticeOperatorBaseRegReg {
                 (l1.type == Lattice::Constant) ? l1.constant : l2.constant;
             Register src = (l1.type == Lattice::Constant) ? src2 : src1;
 
-            mbb.emplace(mi, DESC_MULTI, dest, src, ImmediateOpKind{val});
-            mbb.erase(mi);
-            return true;
+            if (MultiplyOptimizer{mi, dest, src, val}.emitOpt()) {
+                mbb.erase(mi);
+                return true;
+            }
         }
         return false;
     }
 };
 
-// template <>
-// struct RewriteInstruction<DESC_SDIV.opcode> : LatticeOperatorBaseRegReg {
-//     using LatticeOperatorBaseRegReg::LatticeOperatorBaseRegReg;
+template <>
+struct RewriteInstruction<DESC_SDIV.opcode> : LatticeOperatorBaseRegReg {
+    using LatticeOperatorBaseRegReg::LatticeOperatorBaseRegReg;
 
-//     bool operator()() {
-//         if (l2.type == Lattice::Constant) {
-//             int64_t val    = l2.constant;
-//             int64_t negVal = -val;
-
-//             mbb.emplace(mi, DESC_SDIVI, dest, src1, ImmediateOpKind{negVal});
-//             mbb.erase(mi);
-//             return true;
-//         }
-//         return false;
-//     }
-// };
+    bool operator()() {
+        if (l2.type == Lattice::Constant) {
+            if (DivisionOptimizer{mi, dest, src1, l2.constant}.emitOpt()) {
+                mbb.erase(mi);
+                return true;
+            }
+        }
+        return false;
+    }
+};
 
 bool rewriteInstruction(MachineInstr& mi, const LatticeAnalysis& lattices) {
     MachineBasicBlock& mbb = *mi.parent();
@@ -284,8 +296,15 @@ HANDLE_CALC_OPERATOR(Sge, >=);
 HANDLE_CALC_OPERATOR(Slt, <);
 HANDLE_CALC_OPERATOR(Sle, <=);
 HANDLE_CALC_OPERATOR(Sll, <<);
-HANDLE_CALC_OPERATOR(Srl, >>);
+HANDLE_CALC_OPERATOR(Sra, >>);
 #undef HANDLE_CALC_OPERATOR
+
+struct CalculateSrl {
+    static int64_t calculate(int64_t lhs, int64_t rhs) {
+        return static_cast<int64_t>(static_cast<uint64_t>(lhs) >>
+                                    static_cast<uint64_t>(rhs));
+    }
+};
 
 #define HANDLE_LATTICE_EVAL(desc_name, base_name, calc_name)                   \
     template <>                                                                \
@@ -310,6 +329,7 @@ HANDLE_LATTICE_EVAL(SLE, RegReg, Sle);
 HANDLE_LATTICE_EVAL(ADDI, RegImm, Add);
 HANDLE_LATTICE_EVAL(SLL, RegImm, Sll);
 HANDLE_LATTICE_EVAL(SRL, RegImm, Srl);
+HANDLE_LATTICE_EVAL(SRA, RegImm, Sra);
 
 #undef HANDLE_LATTICE_EVAL
 
@@ -344,24 +364,6 @@ struct LatticeEvaluate<DESC_MUL.opcode>
         if (ret.type != Lattice::Constant) {
             if ((l1.type == Lattice::Constant && l1.constant == 0) ||
                 (l2.type == Lattice::Constant && l2.constant == 0))
-                return {Lattice::Constant, 0};
-        }
-        return ret;
-    }
-};
-
-template <>
-struct LatticeEvaluate<DESC_MULTI.opcode>
-    : LatticeEvalRegImm<LatticeEvaluate<DESC_MULTI.opcode>>, CalculateMul {
-    using LatticeEvalRegImm<
-        LatticeEvaluate<DESC_MULTI.opcode>>::LatticeEvalRegImm;
-
-    Lattice operator()() {
-        Lattice ret =
-            LatticeEvalRegImm<LatticeEvaluate<DESC_MULTI.opcode>>::operator()();
-        if (ret.type != Lattice::Constant) {
-            if ((srcLat.type == Lattice::Constant && srcLat.constant == 0) ||
-                imm == 0)
                 return {Lattice::Constant, 0};
         }
         return ret;

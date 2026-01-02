@@ -19,7 +19,6 @@
 using namespace ir;
 
 static std::ostream& operator<<(std::ostream& os, const Module* module);
-static std::ostream& operator<<(std::ostream& os, const Type* type);
 
 enum PrefixType {
     GlobalPrefix,
@@ -340,7 +339,7 @@ static std::ostream& operator<<(std::ostream& os, const Module* module) {
 // }
 
 // print type
-static std::ostream& operator<<(std::ostream& os, const Type* type) {
+std::ostream& operator<<(std::ostream& os, const Type* type) {
     switch (type->getTypeID()) {
         case Type::VoidTyID:
             os << "void";
