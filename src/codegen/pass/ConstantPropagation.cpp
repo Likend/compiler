@@ -23,7 +23,7 @@ struct LatticeAnalysis : std::unordered_map<Register, Lattice> {};
 Lattice evaluate(MachineInstr& mi, const LatticeAnalysis& lattices);
 bool    rewriteInstruction(MachineInstr& mi, const LatticeAnalysis& lattices);
 
-bool ConstantPropagation::runOnMachineFunction(MachineFunction& mf) {
+bool ConstantPropagationPass::runOnMachineFunction(MachineFunction& mf) {
     if (mf.empty()) return false;
 
     LatticeAnalysis lattices;

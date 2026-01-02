@@ -101,7 +101,7 @@ struct MultiOpt {
     }
 };
 
-bool MipsMachineMulDivOpt::runOnMachineFunction(MachineFunction& mf) {
+bool MipsMachineMulDivOptPass::runOnMachineFunction(MachineFunction& mf) {
     bool changed = false;
     for (MachineBasicBlock& mbb : mf) {
         for (auto miIt = mbb.begin(); miIt != mbb.end();) {

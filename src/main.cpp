@@ -110,9 +110,9 @@ int main() {
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
-                new codegen::ConstantPropagation{},
+                new codegen::ConstantPropagationPass{},
                 new codegen::MIRPrinterPass{mir1_file},
-                new codegen::MipsMachineMulDivOpt{},
+                new codegen::MipsMachineMulDivOptPass{},
                 new codegen::MovePropagationPass{},
                 new codegen::MIRPrinterPass{mir2_file},
 
