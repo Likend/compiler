@@ -19,6 +19,7 @@
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
 #include "ir/WellForm.hpp"
+#include "opt/MemToReg.hpp"
 #include "opt/SimplifyCFG.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -105,6 +106,7 @@ int main() {
             ir::PassManager pm{
                 new ir::IRPrinterPass{ir1_file},
                 new ir::WellFormPass{},
+                new opt::MemToRegPass{},
                 new opt::SimplifyCFGPass{},
                 new ir::IRPrinterPass{ir2_file},
                 new codegen::MachineModuleAnalysisPass{},
