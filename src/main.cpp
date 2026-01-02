@@ -103,6 +103,7 @@ int main() {
             std::ofstream mir_file{"mir.txt", std::ios_base::out};
             std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
             std::ofstream mir2_file{"mir2.txt", std::ios_base::out};
+            std::ofstream mir3_file{"mir3.txt", std::ios_base::out};
             std::ofstream mips_file{"mips.txt", std::ios_base::out};
 
             ir::PassManager pm{
@@ -113,15 +114,16 @@ int main() {
                 new opt::RemoveUnusePass{},
                 new opt::SimplifyCFGPass{},
                 new opt::RemoveUnusePass{},
+
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
                 new codegen::ConstantPropagationPass{},
-                new codegen::MIRPrinterPass{mir1_file},
                 new codegen::MipsMachineMulDivOptPass{},
+                new codegen::MIRPrinterPass{mir1_file},
                 new codegen::MovePropagationPass{},
-                new codegen::RemoveUnusePass{},
                 new codegen::MIRPrinterPass{mir2_file},
+                new codegen::RemoveUnusePass{},
 
                 // not ssa from bellow
                 new codegen::LinerScanRegisterAllocPass{
@@ -129,6 +131,7 @@ int main() {
                     REG_T7, REG_S0, REG_S1, REG_S2, REG_S3, REG_S4, REG_S5,
                     REG_S6, REG_S7},
                 new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
+                new codegen::MIRPrinterPass{mir3_file},
                 new codegen::FillFramePass{},
                 new codegen::MipsPrinterPass{mips_file},
             };

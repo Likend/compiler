@@ -83,11 +83,13 @@ void LinerScanRegisterAllocPass::computeGlobalLiveness() {
         for (MachineInstr& instr : mbb) {
             for (MachineOperand& op : instr.explicit_uses()) {
                 Register reg = op.getRegister();
-                if (cur.def.find(reg) == cur.def.end()) cur.use.insert(reg);
+                if (!reg.isVirtual()) continue;
+                if (cur.def.count(reg) == 0) cur.use.insert(reg);
             }
             for (MachineOperand& op : instr.explicit_defs()) {
                 Register reg = op.getRegister();
-                if (cur.use.find(reg) == cur.use.end()) cur.def.insert(reg);
+                if (!reg.isVirtual()) continue;
+                if (cur.use.count(reg) == 0) cur.def.insert(reg);
             }
         }
 
@@ -112,14 +114,23 @@ void LinerScanRegisterAllocPass::computeGlobalLiveness() {
                 // 差集 cur.out - cur.def -> cur.in
                 std::copy_if(cur.out.begin(), cur.out.end(),
                              std::inserter(cur.in, cur.in.begin()),
-                             [&](const Register& reg) {
-                                 return cur.def.find(reg) == cur.def.end();
+                             [&cur](const Register& reg) {
+                                 return cur.def.count(reg) == 0;
                              });
                 size_t updateInSize = cur.in.size();
                 if (updateInSize != prevInSize) modified = true;
             }
         }
     } while (modified);
+
+#ifndef NDEBUG
+    for (auto& [bb, liveness] : livenesses) {
+        for (Register reg : liveness.def) ASSERT(reg.isVirtual());
+        for (Register reg : liveness.use) ASSERT(reg.isVirtual());
+        for (Register reg : liveness.in) ASSERT(reg.isVirtual());
+        for (Register reg : liveness.out) ASSERT(reg.isVirtual());
+    }
+#endif
 }
 
 void LinerScanRegisterAllocPass::computeGlobalInstrIndexes() {

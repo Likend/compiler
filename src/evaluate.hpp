@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "ir/BasicBlock.hpp"
+#include "ir/Constants.hpp"
 #include "ir/IRBuilder.hpp"
 #include "ir/Value.hpp"
 #include "symbol_table.hpp"
@@ -136,10 +137,10 @@ class UnaryExp : public Exp {
 class PoisonIntVarExp : public Exp {
    public:
     ir::Value* rvalue(ir::IRBuilder& builder) override {
-        return builder.getInt32(0);
+        return ir::PoisonValue::get(builder.getInt32Ty());
     }
     ir::Value* lvalue(ir::IRBuilder& builder) override {
-        return builder.CreateAlloca(builder.getInt32Ty(), nullptr, "poison");
+        return ir::PoisonValue::get(builder.getPtrTy());
     }
     std::optional<int32_t> test_constexpr() override { return 0; };
     Type                   type() override { return T_INT; }

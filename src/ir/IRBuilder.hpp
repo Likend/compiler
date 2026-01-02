@@ -180,6 +180,15 @@ class IRBuilder {
     }
 
     // Instruction - Memory
+    AllocaInst* CreateEntryBlockAlloca(Type* ty, Value* arraySize,
+                                       std::string name) {
+        if (arraySize == nullptr) {
+            arraySize = ConstantInt::get(getInt32Ty(), 1);
+        }
+        auto* inst = new AllocaInst{ty, 0, arraySize, std::move(name)};
+        bb->parent()->front().push_front(inst);
+        return inst;
+    }
     AllocaInst* CreateAlloca(Type* ty, Value* arraySize, std::string name) {
         if (arraySize == nullptr) {
             arraySize = ConstantInt::get(getInt32Ty(), 1);

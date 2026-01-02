@@ -233,8 +233,8 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
             *module, alloc_type, const_flag, ir::GlobalValue::ExternalLinkage,
             nullptr, std::string(ident->content));
     } else {
-        alloc_ptr = builder->CreateAlloca(alloc_type, nullptr,
-                                          "alloc."s.append(ident->content));
+        alloc_ptr = builder->CreateEntryBlockAlloca(
+            alloc_type, nullptr, "alloc."s.append(ident->content));
     }
 
     // initializer
@@ -485,8 +485,8 @@ void Visitor::invoke_func_def(const ASTNode& node) {
         arg.setName(std::string(ident.content));
         ir::Value* arg_ptr;
         if (!arg.getType()->isPointerTy()) {
-            arg_ptr = builder->CreateAlloca(arg.getType(), nullptr,
-                                            "alloc."s.append(ident.content));
+            arg_ptr = builder->CreateEntryBlockAlloca(
+                arg.getType(), nullptr, "alloc."s.append(ident.content));
             builder->CreateStore(&arg, arg_ptr);
         } else {
             arg_ptr = &arg;

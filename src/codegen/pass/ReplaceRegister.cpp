@@ -1,7 +1,5 @@
 #include "codegen/pass/ReplaceRegister.hpp"
 
-#include <algorithm>
-#include <iterator>
 #include <map>
 
 #include "codegen/MachineBasicBlock.hpp"
@@ -11,6 +9,7 @@
 #include "codegen/pass/LinerScanRegisterAlloc.hpp"
 #include "codegen/Register.hpp"
 #include "codegen/RegisterInfo.hpp"
+#include "util/assert.hpp"
 
 using namespace codegen;
 
@@ -18,9 +17,9 @@ bool ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
     auto                  allocation = allocationAnalysis->at(&mf);
     std::vector<Register> regs;
     regs.reserve(mf.regInfos.size());
-    std::transform(mf.regInfos.begin(), mf.regInfos.end(),
-                   std::back_inserter(regs),
-                   [](const auto& p) { return p.first; });
+    for (auto& [reg, regInfo] : mf.regInfos) {
+        if (reg.isVirtual()) regs.push_back(reg);
+    }
     std::map<Register, int64_t> stackRegObjectId;
     for (Register sourceVReg : regs) {
         auto&    info      = mf.regInfos.at(sourceVReg);
@@ -35,9 +34,11 @@ bool ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
                 use->ChangeTo({RegisterOpKind{targetReg}});
                 targetInfo.addUse(*use);
             }
-        } else {
+        } else if (targetReg.isStack()) {
             stackRegObjectId[sourceVReg] =
                 static_cast<int64_t>(mf.CreateStackObject(32));
+        } else {
+            UNREACHABLE();
         }
         mf.regInfos.erase(sourceVReg);
     }
