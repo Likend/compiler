@@ -177,6 +177,8 @@ class Printer {
             os << '"';
         } else if (dynamic_cast<const ConstantAggregateZero*>(constant)) {
             os << "zeroinitializer";
+        } else if (dynamic_cast<const PoisonValue*>(constant)) {
+            os << "<poison>";
         } else {
             UNREACHABLE();
         }

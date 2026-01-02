@@ -20,6 +20,7 @@
 #include "ir/Pass.hpp"
 #include "ir/WellForm.hpp"
 #include "opt/MemToReg.hpp"
+#include "opt/RemoveUnse.hpp"
 #include "opt/SimplifyCFG.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -104,11 +105,13 @@ int main() {
             std::ofstream mips_file{"mips.txt", std::ios_base::out};
 
             ir::PassManager pm{
-                new ir::IRPrinterPass{ir1_file},
                 new ir::WellFormPass{},
+                new ir::IRPrinterPass{ir1_file},
                 new opt::MemToRegPass{},
-                new opt::SimplifyCFGPass{},
                 new ir::IRPrinterPass{ir2_file},
+                new opt::RemoveUnsePass{},
+                new opt::SimplifyCFGPass{},
+                new opt::RemoveUnsePass{},
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},

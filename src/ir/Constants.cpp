@@ -17,6 +17,15 @@ ConstantInt* ConstantInt::get(IntegerType* ty, int32_t v) {
     return it.get();
 }
 
+PoisonValue* PoisonValue::get(Type* ty) {
+    LLVMContextImpl* pImpl = ty->getContext().pImpl.get();
+    auto&            it    = pImpl->poisonValues[ty];
+    if (!it.get()) {
+        it = std::unique_ptr<PoisonValue>(new PoisonValue{ty});
+    }
+    return it.get();
+}
+
 ConstantArray* ConstantArray::get(ArrayType*                    ty,
                                   const std::vector<Constant*>& val) {
     LLVMContextImpl* pImpl = ty->getContext().pImpl.get();

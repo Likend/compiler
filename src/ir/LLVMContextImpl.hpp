@@ -46,6 +46,7 @@ class LLVMContextImpl {
 
     map<tuple<unsigned, int32_t>, ptr<ConstantInt>> intConstants;
     map<Type*, ptr<ConstantAggregateZero>>          zeroConstants;
+    map<Type*, ptr<PoisonValue>>                    poisonValues;
 
     std::unordered_set<Module*> ownedModules;
 

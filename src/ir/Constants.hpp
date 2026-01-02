@@ -46,6 +46,13 @@ class ConstantInt final : public ConstantData {
     }
 };
 
+class PoisonValue final : public ConstantData {
+    PoisonValue(Type* ty) : ConstantData(ty) {}
+
+   public:
+    static PoisonValue* get(Type* ty);
+};
+
 class ConstantAggregate : public Constant {
    protected:
     ConstantAggregate(Type* ty, const std::vector<Constant*>& val)
