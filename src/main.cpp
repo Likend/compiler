@@ -13,6 +13,7 @@
 #include "codegen/pass/MipsPrinter.hpp"
 #include "codegen/pass/MIRPrinter.hpp"
 #include "codegen/pass/MovePropagation.hpp"
+#include "codegen/pass/RemoveJump.hpp"
 #include "codegen/pass/RemoveUnuse.hpp"
 #include "codegen/pass/ReplaceRegister.hpp"
 #include "codegen/pass/RewriteLoadStore.hpp"
@@ -133,6 +134,7 @@ int main() {
                 new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
                 new codegen::MIRPrinterPass{mir3_file},
                 new codegen::FillFramePass{},
+                new codegen::RemoveJumpPass{},
                 new codegen::MipsPrinterPass{mips_file},
             };
             visitor.runPass(pm);

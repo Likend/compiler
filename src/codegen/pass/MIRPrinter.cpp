@@ -27,11 +27,15 @@ bool MIRPrinterPass::doInitialization(ir::Module& m) {
 }
 
 void MIRPrinterPass::printFunction(MachineFunction& mf) {
-    for (auto& [reg, info] : mf.regInfos) {
+    for (const auto& [reg, info] : mf.regInfos) {
         os << "# ";
         printReg(reg);
         os << " use count " << info.use_end() - info.use_begin()
            << " def count " << info.def_end() - info.def_begin() << '\n';
+    }
+
+    for (const StackObject& frame : mf.stackObjects) {
+        os << "# Frame ID " << frame.stackID << " size " << frame.size / 8 << '\n';
     }
 
     os << mf.getFunction().getName() << ":\n";
