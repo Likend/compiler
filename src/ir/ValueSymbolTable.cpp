@@ -11,7 +11,7 @@
 using namespace ir;
 
 Value* ValueSymbolTable::lookup(std::string_view name) const {
-    if (auto it = vmap.find(name); it != vmap.end()) {
+    if (auto it = vmap.find(std::string(name)); it != vmap.end()) {
         return it->second;
     } else {
         return nullptr;
@@ -32,15 +32,15 @@ std::string ValueSymbolTable::makeUniqueName(std::string name) const {
 }
 
 void ValueSymbolTable::removeValueName(std::string_view name) {
-    if (auto it = vmap.find(name); it != vmap.end()) {
+    if (auto it = vmap.find(std::string(name)); it != vmap.end()) {
         vmap.erase(it);
     }
 }
 
 void ValueSymbolTable::insertValue(Value* value) {
-    ASSERT_WITH(lookup(value->getName()) == nullptr,
-                "Value with name already in table");
-    vmap[value->getName()] = value;
+    ASSERT_WITH(lookup(value->getName()) == nullptr, "Value with",
+                value->getName(), "already in table");
+    vmap[std::string(value->getName())] = value;
 }
 
 ValueSymbolTable& value_node_detail::getSymTab(BasicBlock* bb) {

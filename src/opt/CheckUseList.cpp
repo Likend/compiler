@@ -4,6 +4,7 @@
 #include <unordered_set>
 
 #include "ir/Function.hpp"
+#include "ir/Module.hpp"
 
 using namespace ir;
 using namespace opt;
@@ -15,6 +16,28 @@ void verifyValueUsers(Value* value, const std::unordered_set<Value*>& values) {
                       << " user not in instructions";
         }
     }
+}
+
+bool CheckUseListPass::runOnModule(Module& m) {
+    std::unordered_set<Value*> values;
+
+    for (Function& f : m) {
+        for (BasicBlock& bb : f) {
+            for (Instruction& inst : bb) {
+                values.insert(&inst);
+            }
+        }
+    }
+
+    for (Function& f : m) {
+        verifyValueUsers(&f, values);
+    }
+
+    for (Function& f : m) {
+        runOnFunction(f);
+    }
+
+    return false;
 }
 
 bool CheckUseListPass::runOnFunction(Function& f) {

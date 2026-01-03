@@ -21,6 +21,7 @@
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
 #include "ir/WellForm.hpp"
+#include "opt/FunctionInline.hpp"
 #include "opt/MemToReg.hpp"
 #include "opt/RemoveUnuse.hpp"
 #include "opt/SimplifyCFG.hpp"
@@ -103,6 +104,9 @@ int main() {
             std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
             std::ofstream ir1_file{"llvm_ir1.txt", std::ios_base::out};
             std::ofstream ir2_file{"llvm_ir2.txt", std::ios_base::out};
+            std::ofstream ir3_file{"llvm_ir3.txt", std::ios_base::out};
+            std::ofstream ir4_file{"llvm_ir4.txt", std::ios_base::out};
+            std::ofstream ir5_file{"llvm_ir5.txt", std::ios_base::out};
             std::ofstream mir_file{"mir.txt", std::ios_base::out};
             std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
             std::ofstream mir2_file{"mir2.txt", std::ios_base::out};
@@ -111,15 +115,20 @@ int main() {
 
             ir::PassManager pm{
                 new ir::WellFormPass{},
+                new opt::MemToRegPass{},
                 new ir::IRPrinterPass{ir_file},
-                new opt::MemToRegPass{},
-                new opt::SimplifyCFGPass{},  // optional
+                new opt::SimplifyCFGPass{},
                 new opt::RemoveUnusePass{},
-                new opt::TailDuplicatePass{},
                 new ir::IRPrinterPass{ir1_file},
-                new opt::MemToRegPass{},
+                new opt::FunctionInlinePass{},
+                new opt::SimplifyCFGPass{},
                 new ir::IRPrinterPass{ir2_file},
+                new opt::TailDuplicatePass{},
+                new ir::IRPrinterPass{ir3_file},
+                new opt::MemToRegPass{},
+                new ir::IRPrinterPass{ir4_file},
                 new opt::RemoveUnusePass{},
+                new ir::IRPrinterPass{ir5_file},
 
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},

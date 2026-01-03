@@ -14,7 +14,7 @@ class BasicBlock;
 class Value;
 
 class ValueSymbolTable {
-    std::unordered_map<std::string_view, Value*> vmap;
+    std::unordered_map<std::string, Value*> vmap;
 
    public:
     Value* lookup(std::string_view name) const;

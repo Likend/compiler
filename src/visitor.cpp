@@ -27,31 +27,24 @@
 using NodePtr = std::unique_ptr<ASTNode>;
 using namespace std::string_literals;
 
-#define UNEXPECTED_TYPE(type)                      \
-    do {                                           \
-        std::stringstream ss;                      \
-        ss << "Unexpected type: " << (type);       \
-        assert_throw(ss.str(), ANNOTATE_LOCATION); \
+#define UNEXPECTED_TYPE(type) \
+    assert_throw(ANNOTATE_LOCATION, "Unexpected type:", (type));
+
+#define ASSERT_AST_TYPE(t, node)                                              \
+    do {                                                                      \
+        if ((node).type != ASTNode::Type::t) {                                \
+            assert_throw(ANNOTATE_LOCATION, "Assert AST type failed! Expect", \
+                         ASTNode::Type::t, "get", (node).type);               \
+        }                                                                     \
     } while (0)
 
-#define ASSERT_AST_TYPE(t, node)                                        \
-    do {                                                                \
-        if ((node).type != ASTNode::Type::t) {                          \
-            std::stringstream ss;                                       \
-            ss << "Assert AST type failed! Expect " << ASTNode::Type::t \
-               << " get " << (node).type << ". ";                       \
-            assert_throw(ss.str(), ANNOTATE_LOCATION);                  \
-        }                                                               \
-    } while (0)
-
-#define ASSERT_TOKEN_TYPE(t, token)                                     \
-    do {                                                                \
-        if ((token).type != Token::Type::t) {                           \
-            std::stringstream ss;                                       \
-            ss << "Assert Token type failed! Expect " << Token::Type::t \
-               << " get " << (token).type << ". ";                      \
-            assert_throw(ss.str(), ANNOTATE_LOCATION);                  \
-        }                                                               \
+#define ASSERT_TOKEN_TYPE(t, token)                                          \
+    do {                                                                     \
+        if ((token).type != Token::Type::t) {                                \
+            assert_throw(ANNOTATE_LOCATION,                                  \
+                         "Assert Token type failed! Expect", Token::Type::t, \
+                         "get", (token).type);                               \
+        }                                                                    \
     } while (0)
 
 Visitor::Visitor(const ASTNode& node) {
