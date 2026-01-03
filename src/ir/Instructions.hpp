@@ -81,6 +81,16 @@ class BinaryOperator final : public Instruction {
         }
     }
 
+    // Associative operators satisfy:  x op (y op z) === (x op y) op z
+    bool isAssociative() const {
+        return iType == Add || iType == Mul || iType == Xor;
+    }
+
+    // Commutative operators satisfy: (x op y) === (y op x)
+    bool isCommutative() const {
+        return iType == Add || iType == Mul || iType == Xor;
+    }
+
     BinaryOperator* clone(
         const std::function<Value*(const Value*)>& vmap_lookup) const override {
         return new BinaryOperator{iType, vmap_lookup(getLHS()),

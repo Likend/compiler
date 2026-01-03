@@ -26,6 +26,7 @@
 #include "opt/MemToReg.hpp"
 #include "opt/RemoveUnuse.hpp"
 #include "opt/SimplifyCFG.hpp"
+#include "opt/SubexprElimination.hpp"
 #include "opt/TailDuplicate.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
@@ -126,8 +127,9 @@ int main() {
                 new opt::SimplifyCFGPass{},
                 new ir::IRPrinterPass{ir2_file},
                 new opt::TailDuplicatePass{},
-                new ir::IRPrinterPass{ir3_file},
                 new opt::MemToRegPass{},
+                new ir::IRPrinterPass{ir3_file},
+                new opt::SubexprEliminationPass{},
                 new ir::IRPrinterPass{ir4_file},
                 new opt::ConstantPropagationPass{},
                 new ir::IRPrinterPass{ir5_file},
