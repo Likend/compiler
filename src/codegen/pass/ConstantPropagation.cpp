@@ -15,8 +15,8 @@
 using namespace codegen;
 
 struct Lattice {
-    enum Type { None, Bottom, Constant };
-    Type    type     = None;
+    enum Type { Top, Bottom, Constant };
+    Type    type     = Top;
     int64_t constant = 0;
 };
 
@@ -306,7 +306,7 @@ struct LatticeEvalRegReg : LatticeOperatorBaseRegReg {
         else if (l1.type == Lattice::Bottom || l2.type == Lattice::Bottom)
             return {Lattice::Bottom};
         else
-            return {Lattice::None};
+            return {Lattice::Top};
     }
 };
 
@@ -349,8 +349,8 @@ struct CalculateSrl {
     }
 
 HANDLE_LATTICE_EVAL(ADD, RegReg, Add);
-HANDLE_LATTICE_EVAL(SDIV, RegReg, SDiv);
-HANDLE_LATTICE_EVAL(SREM, RegReg, SRem);
+// HANDLE_LATTICE_EVAL(SDIV, RegReg, SDiv);
+// HANDLE_LATTICE_EVAL(SREM, RegReg, SRem);
 HANDLE_LATTICE_EVAL(XOR, RegReg, Xor);
 HANDLE_LATTICE_EVAL(SEQ, RegReg, Seq);
 HANDLE_LATTICE_EVAL(SNE, RegReg, Sne);
@@ -374,13 +374,11 @@ struct LatticeEvaluate<DESC_SUB.opcode>
         LatticeEvaluate<DESC_SUB.opcode>>::LatticeEvalRegReg;
 
     Lattice operator()() {
-        Lattice ret =
-            LatticeEvalRegReg<LatticeEvaluate<DESC_SUB.opcode>>::operator()();
         // 特殊优化：如果 $src1 == $src2，结果必为 0
-        if (ret.type != Lattice::Constant) {
-            if (src1 == src2) return {Lattice::Constant, 0};
-        }
-        return ret;
+        if (src1 == src2) return {Lattice::Constant, 0};
+
+        return LatticeEvalRegReg<
+            LatticeEvaluate<DESC_SUB.opcode>>::operator()();
     }
 };
 
@@ -391,15 +389,47 @@ struct LatticeEvaluate<DESC_MUL.opcode>
         LatticeEvaluate<DESC_MUL.opcode>>::LatticeEvalRegReg;
 
     Lattice operator()() {
-        Lattice ret =
-            LatticeEvalRegReg<LatticeEvaluate<DESC_MUL.opcode>>::operator()();
         // 特殊优化：如果 $src1 == 0 或 $src2 == 0，结果必为 0
-        if (ret.type != Lattice::Constant) {
-            if ((l1.type == Lattice::Constant && l1.constant == 0) ||
-                (l2.type == Lattice::Constant && l2.constant == 0))
-                return {Lattice::Constant, 0};
-        }
-        return ret;
+        if ((l1.type == Lattice::Constant && l1.constant == 0) ||
+            (l2.type == Lattice::Constant && l2.constant == 0))
+            return {Lattice::Constant, 0};
+
+        return LatticeEvalRegReg<
+            LatticeEvaluate<DESC_MUL.opcode>>::operator()();
+    }
+};
+
+template <>
+struct LatticeEvaluate<DESC_SDIV.opcode>
+    : LatticeEvalRegReg<LatticeEvaluate<DESC_SDIV.opcode>>, CalculateSDiv {
+    using LatticeEvalRegReg<
+        LatticeEvaluate<DESC_SDIV.opcode>>::LatticeEvalRegReg;
+
+    Lattice operator()() {
+        if (l2.type == Lattice::Constant && l2.constant == 0)
+            return {Lattice::Bottom};
+        if (l1.type == Lattice::Constant && l1.constant == 0)
+            return {Lattice::Constant, 0};
+
+        return LatticeEvalRegReg<
+            LatticeEvaluate<DESC_SDIV.opcode>>::operator()();
+    }
+};
+
+template <>
+struct LatticeEvaluate<DESC_SREM.opcode>
+    : LatticeEvalRegReg<LatticeEvaluate<DESC_SREM.opcode>>, CalculateSDiv {
+    using LatticeEvalRegReg<
+        LatticeEvaluate<DESC_SREM.opcode>>::LatticeEvalRegReg;
+
+    Lattice operator()() {
+        if (l2.type == Lattice::Constant && l2.constant == 0)
+            return {Lattice::Bottom};
+        if (l1.type == Lattice::Constant && l1.constant == 0)
+            return {Lattice::Constant, 0};
+
+        return LatticeEvalRegReg<
+            LatticeEvaluate<DESC_SREM.opcode>>::operator()();
     }
 };
 

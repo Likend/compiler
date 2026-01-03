@@ -87,7 +87,8 @@ std::optional<int32_t> ArrayAccessExp::test_constexpr() {
     if (record.attr.is_const()) {
         if (auto ind = index->test_constexpr()) {
             size_t i = *ind;
-            return record.attr.const_values.at(i);
+            if (i < record.attr.const_values.size())
+                return record.attr.const_values.at(i);
         }
     }
     return std::nullopt;

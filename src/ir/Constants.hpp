@@ -61,6 +61,12 @@ class ConstantAggregate : public Constant {
             setOperand(i, val[i]);
         }
     }
+
+   public:
+    Constant* getAggregateElement(size_t i) {
+        return dynamic_cast<Constant*>(getOperand(i));
+    }
+    size_t getNumAggregateElements() const { return getNumOperands(); }
 };
 
 class ConstantArray final : public ConstantAggregate {

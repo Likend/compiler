@@ -21,6 +21,7 @@
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
 #include "ir/WellForm.hpp"
+#include "opt/ConstantPropagation.hpp"
 #include "opt/FunctionInline.hpp"
 #include "opt/MemToReg.hpp"
 #include "opt/RemoveUnuse.hpp"
@@ -117,9 +118,10 @@ int main() {
                 new ir::WellFormPass{},
                 new opt::MemToRegPass{},
                 new ir::IRPrinterPass{ir_file},
+                new opt::ConstantPropagationPass{},
+                new ir::IRPrinterPass{ir1_file},
                 new opt::SimplifyCFGPass{},
                 new opt::RemoveUnusePass{},
-                new ir::IRPrinterPass{ir1_file},
                 new opt::FunctionInlinePass{},
                 new opt::SimplifyCFGPass{},
                 new ir::IRPrinterPass{ir2_file},
@@ -127,8 +129,9 @@ int main() {
                 new ir::IRPrinterPass{ir3_file},
                 new opt::MemToRegPass{},
                 new ir::IRPrinterPass{ir4_file},
-                new opt::RemoveUnusePass{},
+                new opt::ConstantPropagationPass{},
                 new ir::IRPrinterPass{ir5_file},
+                new opt::RemoveUnusePass{},
 
                 new codegen::MachineModuleAnalysisPass{},
                 new codegen::IRTranslator{},
