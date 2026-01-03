@@ -43,16 +43,16 @@ void ValueSymbolTable::insertValue(Value* value) {
     vmap[std::string(value->getName())] = value;
 }
 
-ValueSymbolTable& value_node_detail::getSymTab(BasicBlock* bb) {
-    return bb->parent()->getValueSymbolTable();
+ValueSymbolTable* value_node_detail::getSymTab(BasicBlock* bb) {
+    return bb ? getSymTab(bb->parent()) : nullptr;
 }
 
-ValueSymbolTable& value_node_detail::getSymTab(Module* m) {
-    return m->getValueSymbolTable();
+ValueSymbolTable* value_node_detail::getSymTab(Module* m) {
+    return m ? &m->getValueSymbolTable() : nullptr;
 }
 
-ValueSymbolTable& value_node_detail::getSymTab(Function* f) {
-    return f->getValueSymbolTable();
+ValueSymbolTable* value_node_detail::getSymTab(Function* f) {
+    return f ? &f->getValueSymbolTable() : nullptr;
 }
 
 bool value_node_detail::isVoid(Value* value) {

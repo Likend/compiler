@@ -26,6 +26,11 @@ class BasicBlock final : public Value,
         setName(std::move(name));
     }
 
+    ~BasicBlock() {
+        // 手动调用 IntrusiveList 的析构，保证此时 symbolTable 有效
+        this->clear();
+    }
+
     static BasicBlock* Create(LLVMContext& c, std::string name,
                               Function* parent = nullptr);
 

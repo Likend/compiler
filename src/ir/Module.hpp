@@ -21,6 +21,11 @@ class Module : public IntrusiveList<Function> {
     friend class GlobalVariable;
 
    public:
+    ~Module() {
+        // 手动调用 IntrusiveList 的析构，保证此时 symbolTable 有效
+        this->clear();
+    }
+
     explicit Module(std::string moduleID, LLVMContext& c);
     std::string_view getName() const { return moduleID; }
 

@@ -31,10 +31,32 @@ class ValueSymbolTable {
 };
 
 namespace value_node_detail {
-ValueSymbolTable& getSymTab(Function*);
-ValueSymbolTable& getSymTab(Module*);
-ValueSymbolTable& getSymTab(BasicBlock*);
-bool              isVoid(Value*);
+ValueSymbolTable* getSymTab(Function*);
+ValueSymbolTable* getSymTab(Module*);
+ValueSymbolTable* getSymTab(BasicBlock*);
+
+template <typename Parent>
+ValueSymbolTable* getParentSymTab(IntrusiveNodeWithParent<Parent>* node) {
+    ValueSymbolTable* symTab = nullptr;
+    if constexpr (std::is_same_v<Parent, Function>) {
+        Function* f = node->parent();
+        if (f) symTab = getSymTab(f);
+    } else if constexpr (std::is_same_v<Parent, Module>) {
+        Module* m = node->parent();
+        if (m) symTab = getSymTab(m);
+    } else if constexpr (std::is_same_v<Parent, BasicBlock>) {
+        BasicBlock* bb = node->parent();
+        symTab         = getSymTab(bb);
+    } else {
+        static_assert(std::is_same_v<Parent, Function> ||
+                          std::is_same_v<Parent, Module> ||
+                          std::is_same_v<Parent, BasicBlock>,
+                      "Parent must be Function, Module, or BasicBlock");
+    }
+    return symTab;
+}
+
+bool isVoid(Value*);
 }  // namespace value_node_detail
 
 template <typename Derive, typename Parent>
@@ -66,26 +88,18 @@ class ValueNode : public IntrusiveNodeWithParent<Parent> {
                              ValueNode* next) {
         IntrusiveNodeWithParent<Parent>::link_between(curr, prev, next);
         if (value_node_detail::isVoid(&curr->self())) return;
-        ValueSymbolTable* symTab;
-        if constexpr (std::is_same_v<Parent, Function>) {
-            Function* f = prev->parent();
-            symTab      = &value_node_detail::getSymTab(f);
-        } else if constexpr (std::is_same_v<Parent, Module>) {
-            Module* m = prev->parent();
-            symTab    = &value_node_detail::getSymTab(m);
-        } else if constexpr (std::is_same_v<Parent, BasicBlock>) {
-            BasicBlock* bb = prev->parent();
-            symTab         = &value_node_detail::getSymTab(bb);
-        } else {
-            static_assert(std::is_same_v<Parent, Function> ||
-                              std::is_same_v<Parent, Module> ||
-                              std::is_same_v<Parent, BasicBlock>,
-                          "Parent must be Function, Module, or BasicBlock");
-        }
+        ValueSymbolTable* symTab = value_node_detail::getParentSymTab(prev);
+
         std::string name =
             symTab->makeUniqueName(std::string(curr->self().getName()));
         curr->self().setName(std::move(name));
-        symTab->insertValue(&curr->self());
+        if (symTab) symTab->insertValue(&curr->self());
+    }
+
+    static void unlink(ValueNode* curr) {
+        ValueSymbolTable* symTab = value_node_detail::getParentSymTab(curr);
+        if (symTab) symTab->removeValueName(curr->self().getName());
+        IntrusiveNodeWithParent<Parent>::unlink(curr);
     }
 
     static ValueNode* create_sentinel(Parent& parent) {

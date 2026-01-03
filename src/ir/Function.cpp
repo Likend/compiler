@@ -14,7 +14,11 @@ Function::Function(FunctionType* ty, LinkageTypes linkage, std::string name,
       args(*this) {
     buildArguments();
 }
-Function::~Function() = default;
+Function::~Function() {
+    // 手动调用 IntrusiveList 的析构，保证此时 symbolTable 有效
+    this->clear();
+    args.clear();
+}
 
 void Function::buildArguments() {
     FunctionType* funcTy = getFunctionType();
