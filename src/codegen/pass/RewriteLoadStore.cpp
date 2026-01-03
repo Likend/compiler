@@ -15,7 +15,8 @@ bool RewriteLoadStorePass::runOnMachineFunction(MachineFunction& mf) {
     bool changed = false;
 
     for (MachineBasicBlock& mbb : mf) {
-        for (MachineInstr& mi : mbb) {
+        for (auto miIt = mbb.begin(); miIt != mbb.end();) {
+            MachineInstr& mi = *miIt++;
             if (mi.getOpcode() == DESC_LW.opcode ||
                 mi.getOpcode() == DESC_SW.opcode) {
                 Register base = mi.getOperand(1).getRegister();
@@ -25,15 +26,24 @@ bool RewriteLoadStorePass::runOnMachineFunction(MachineFunction& mf) {
                 ASSERT(info.defs() == 1);
 
                 MachineInstr& defInst = (*info.def_begin())->getParent();
-                if (!(defInst.getOpcode() == DESC_ADDI.opcode)) continue;
-
-                int64_t offset = mi.getOperand(2).getImmediate() +
-                                 defInst.getOperand(2).getImmediate();
-                if (offset >= -(1 << 16) && offset < (1 << 16)) {
-                    mi.changeOperand(mi.getOperand(2),
-                                     {ImmediateOpKind{offset}});
-                    mi.changeOperand(mi.getOperand(1),
-                                     {defInst.getOperand(1).getRegister()});
+                if (defInst.getOpcode() == DESC_ADDI.opcode) {
+                    int64_t offset = mi.getOperand(2).getImmediate() +
+                                     defInst.getOperand(2).getImmediate();
+                    if (offset >= -(1 << 16) && offset < (1 << 16)) {
+                        mi.changeOperand(mi.getOperand(2),
+                                         {ImmediateOpKind{offset}});
+                        mi.changeOperand(mi.getOperand(1),
+                                         {defInst.getOperand(1).getRegister()});
+                        changed = true;
+                    }
+                } else if (defInst.getOpcode() == DESC_FRAME.opcode) {
+                    const MachineInstrDesc& desc =
+                        mi.getOpcode() == DESC_LW.opcode ? DESC_LOAD_FRAME
+                                                         : DESC_STORE_FRAME;
+                    mbb.emplace(
+                        mi, desc, mi.getOperand(0).getRegister(),
+                        ImmediateOpKind{defInst.getOperand(1).getImmediate()});
+                    mbb.erase(mi);
                     changed = true;
                 }
             }
