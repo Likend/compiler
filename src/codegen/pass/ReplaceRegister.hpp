@@ -2,9 +2,10 @@
 
 #include <initializer_list>
 
-#include "codegen/pass/LinerScanRegisterAlloc.hpp"
 #include "codegen/MachineFunctionPass.hpp"
+#include "codegen/pass/LinerScanRegisterAlloc.hpp"
 #include "codegen/Register.hpp"
+#include "codegen/RegisterInfo.hpp"
 #include "ir/Module.hpp"
 #include "util/assert.hpp"
 
@@ -35,5 +36,9 @@ class ReplaceRegisterPass final : public MachineFunctionPass {
     RegisterAllocationAnalysis* allocationAnalysis;
 
     std::vector<Register> regPool;
+
+    void ReplacePhysic(MachineFunction& mf, RegisterInfo& info,
+                       Register targetReg);
+    void ReplaceStack(MachineFunction& mf, RegisterInfo& info);
 };
 }  // namespace codegen

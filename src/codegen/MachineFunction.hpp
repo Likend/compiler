@@ -78,6 +78,7 @@ class MachineFunction : public IntrusiveList<MachineBasicBlock> {
     void removeDef(MachineOperand& op) {
         auto  it   = regInfos.find(op.getRegister());
         auto& info = it->second;
+        ASSERT(it != regInfos.end());
         info.removeDef(op);
         if (info.def_empty() && info.use_empty()) {
             regInfos.erase(it);
@@ -86,6 +87,7 @@ class MachineFunction : public IntrusiveList<MachineBasicBlock> {
     void removeUse(MachineOperand& op) {
         auto  it   = regInfos.find(op.getRegister());
         auto& info = it->second;
+        ASSERT(it != regInfos.end());
         info.removeUse(op);
         if (info.def_empty() && info.use_empty()) {
             regInfos.erase(it);
