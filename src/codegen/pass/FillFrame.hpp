@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "codegen/MachineBasicBlock.hpp"
 #include "codegen/MachineFunction.hpp"
@@ -28,6 +29,8 @@ class FillFramePass final : public MachineFunctionPass {
     Register sp = REG_SP;
     Register v0 = REG_V0;
     Register ra = REG_RA;
+
+    std::vector<Register> argRegs = {REG_A0, REG_A1, REG_A2, REG_A3};
 
     int64_t frameSize;
 

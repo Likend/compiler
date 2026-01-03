@@ -139,24 +139,37 @@ bool FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                     break;
                 }
                 case DESC_GET_CUR_ARG.opcode: {
-                    int64_t     argIndex      = mi.getOperand(1).getImmediate();
-                    int64_t     currentOffset = frameSize + argIndex * 4;
+                    int64_t argIndex      = mi.getOperand(1).getImmediate();
+                    int64_t currentOffset = frameSize + argIndex * 4;
+                    ASSERT(argIndex >= 0);
                     std::string annotation =
                         "GetArg"s + std::to_string(argIndex);
-                    mbb.emplace(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
-                                ImmediateOpKind{currentOffset})
-                        ->addAnnotation(annotation);
+                    if (argIndex < 4)
+                        mbb.emplace(it, DESC_MOVE,
+                                    mi.getOperand(0).getRegister(),
+                                    argRegs.at(argIndex))
+                            ->addAnnotation(annotation);
+                    else
+                        mbb.emplace(it, DESC_LW, mi.getOperand(0).getRegister(),
+                                    sp, ImmediateOpKind{currentOffset})
+                            ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
                 }
                 case DESC_SET_CALL_ARG.opcode: {
-                    int64_t     argIndex      = mi.getOperand(1).getImmediate();
-                    int64_t     currentOffset = argIndex * 4;
+                    int64_t argIndex      = mi.getOperand(1).getImmediate();
+                    int64_t currentOffset = argIndex * 4;
+                    ASSERT(argIndex >= 0);
                     std::string annotation =
                         "SetArg"s + std::to_string(argIndex);
-                    mbb.emplace(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
-                                ImmediateOpKind{currentOffset})
-                        ->addAnnotation(annotation);
+                    if (argIndex < 4)
+                        mbb.emplace(it, DESC_MOVE, argRegs.at(argIndex),
+                                    mi.getOperand(0).getRegister())
+                            ->addAnnotation(annotation);
+                    else
+                        mbb.emplace(it, DESC_SW, mi.getOperand(0).getRegister(),
+                                    sp, ImmediateOpKind{currentOffset})
+                            ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
                 }

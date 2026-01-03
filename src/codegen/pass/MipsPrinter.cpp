@@ -105,26 +105,21 @@ bool MipsPrinterPass::doInitialization(ir::Module& m) {
                       "    jr $ra\n\n";
             } else if (f.getName() == "putint") {
                 os << "putint:\n"
-                      "    lw $a0, 0($sp)\n"
                       "    li $v0, 1\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
             } else if (f.getName() == "putch") {
                 os << "putch:\n"
-                      "    lw $a0, 0($sp)\n"
                       "    li $v0, 11\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
             } else if (f.getName() == "putstr") {
                 os << "putstr:\n"
-                      "    lw $a0, 0($sp)\n"
                       "    li $v0, 4\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
             } else if (f.getName() == "putarray") {
                 os << "putarray:\n"
-                      "    lw $a0, 0($sp)\n"
-                      "    lw $a1, 4($sp)\n"
                       "    li $v0, 1\n"
                       "    syscall\n"
                       "    sll $a0, $a0, 2\n"
