@@ -16,6 +16,7 @@
 #include "codegen/pass/RemoveJump.hpp"
 #include "codegen/pass/RemoveUnuse.hpp"
 #include "codegen/pass/ReplaceRegister.hpp"
+#include "codegen/pass/RewriteBranch.hpp"
 #include "codegen/pass/RewriteLoadStore.hpp"
 #include "codegen/Register.hpp"
 #include "ir/IRPrinter.hpp"
@@ -140,8 +141,9 @@ int main() {
                 new codegen::MIRPrinterPass{mir_file},
                 new codegen::ConstantPropagationPass{},
                 new codegen::MovePropagationPass{},
-                new codegen::MIRPrinterPass{mir1_file},
                 new codegen::RewriteLoadStorePass{},
+                new codegen::MIRPrinterPass{mir1_file},
+                new codegen::RewriteBranchPass{},
                 new codegen::MIRPrinterPass{mir2_file},
                 new codegen::RemoveUnusePass{},
 

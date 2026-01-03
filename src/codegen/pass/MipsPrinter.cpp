@@ -217,117 +217,76 @@ struct Printer {
 };
 
 struct StoreLoadWord : Printer {};
-struct Binary : Printer {};
 
 static std::ostream& operator<<(std::ostream& os, const StoreLoadWord& i) {
     os << i.getOperand(0) << ' ' << i.getOperand(2) << '(' << i.getOperand(1)
        << ')';
     return os;
 }
-static std::ostream& operator<<(std::ostream& os, const Binary& i) {
-    os << i.getOperand(0) << ", " << i.getOperand(1) << ", " << i.getOperand(2);
+static std::ostream& operator<<(std::ostream& os, const Printer& i) {
+    Delimeter deli{", "};
+    for (size_t j = 0; j < i.instr.desc.operandsNum; j++) {
+        os << deli() << i.getOperand(j);
+    }
     return os;
 }
 
 void MipsPrinterPass::printInstruction(MachineInstr& instr) {
     os << "    ";
     switch (instr.desc.opcode) {
-        case DESC_LW.opcode:
-            os << "lw " << StoreLoadWord{instr};
-            break;
-        case DESC_SW.opcode:
-            os << "sw " << StoreLoadWord{instr};
-            break;
+#define HANDLE_DESC_PRINT(desc_name, print_name, printer) \
+    case DESC_##desc_name.opcode:                         \
+        os << #print_name " " << printer{instr};          \
+        break
 
-        case DESC_AND.opcode:
-            os << "and " << Binary{instr};
-            break;
-        case DESC_ADD.opcode:
-            os << "addu " << Binary{instr};
-            break;
-        case DESC_SUB.opcode:
-            os << "subu " << Binary{instr};
-            break;
-        case DESC_MUL.opcode:
-            os << "mul " << Binary{instr};
-            break;
-        case DESC_SDIV.opcode:
-            os << "div " << Binary{instr};
-            break;
-        case DESC_SREM.opcode:
-            os << "rem " << Binary{instr};
-            break;
-        case DESC_XOR.opcode:
-            os << "xor " << Binary{instr};
-            break;
+        HANDLE_DESC_PRINT(LW, lw, StoreLoadWord);
+        HANDLE_DESC_PRINT(SW, sw, StoreLoadWord);
 
-        case DESC_SEQ.opcode:
-            os << "seq " << Binary{instr};
-            break;
-        case DESC_SNE.opcode:
-            os << "sne " << Binary{instr};
-            break;
-        case DESC_SGT.opcode:
-            os << "sgt " << Binary{instr};
-            break;
-        case DESC_SGE.opcode:
-            os << "sge " << Binary{instr};
-            break;
-        case DESC_SLT.opcode:
-            os << "slt " << Binary{instr};
-            break;
-        case DESC_SLE.opcode:
-            os << "sle " << Binary{instr};
-            break;
+        HANDLE_DESC_PRINT(AND, and, Printer);
+        HANDLE_DESC_PRINT(ADD, addu, Printer);
+        HANDLE_DESC_PRINT(SUB, subu, Printer);
+        HANDLE_DESC_PRINT(MUL, mul, Printer);
+        HANDLE_DESC_PRINT(SDIV, div, Printer);
+        HANDLE_DESC_PRINT(SREM, rem, Printer);
+        HANDLE_DESC_PRINT(XOR, xor, Printer);
 
-        case DESC_ADDI.opcode:
-            os << "addiu " << Binary{instr};
-            break;
-        case DESC_ANDI.opcode:
-            os << "andi " << Binary{instr};
-            break;
-        case DESC_SLL.opcode:
-            os << "sll " << Binary{instr};
-            break;
-        case DESC_SRL.opcode:
-            os << "srl " << Binary{instr};
-            break;
-        case DESC_SRA.opcode:
-            os << "sra " << Binary{instr};
-            break;
+        HANDLE_DESC_PRINT(SEQ, seq, Printer);
+        HANDLE_DESC_PRINT(SNE, sne, Printer);
+        HANDLE_DESC_PRINT(SGT, sgt, Printer);
+        HANDLE_DESC_PRINT(SGE, sge, Printer);
+        HANDLE_DESC_PRINT(SLT, slt, Printer);
+        HANDLE_DESC_PRINT(SLE, sle, Printer);
 
-        case DESC_MULT.opcode:
-            os << "mult " << instr.getOperand(0) << ", " << instr.getOperand(1);
-            break;
-        case DESC_MFHI.opcode:
-            os << "mfhi " << instr.getOperand(0);
-            break;
-        case DESC_MFLO.opcode:
-            os << "mflo " << instr.getOperand(0);
-            break;
+        HANDLE_DESC_PRINT(ADDI, addiu, Printer);
+        HANDLE_DESC_PRINT(ANDI, andi, Printer);
+        HANDLE_DESC_PRINT(SLL, sll, Printer);
+        HANDLE_DESC_PRINT(SRL, srl, Printer);
+        HANDLE_DESC_PRINT(SRA, sra, Printer);
+        HANDLE_DESC_PRINT(MULT, mult, Printer);
+        HANDLE_DESC_PRINT(MFHI, mfhi, Printer);
+        HANDLE_DESC_PRINT(MFLO, mflo, Printer);
+
+        HANDLE_DESC_PRINT(BEQ, beq, Printer);
+        HANDLE_DESC_PRINT(BNE, bne, Printer);
+        HANDLE_DESC_PRINT(BEQZ, beqz, Printer);
+        HANDLE_DESC_PRINT(BNEZ, bnez, Printer);
+        HANDLE_DESC_PRINT(BLEZ, blez, Printer);
+        HANDLE_DESC_PRINT(BLTZ, bltz, Printer);
+        HANDLE_DESC_PRINT(BGEZ, bgez, Printer);
+        HANDLE_DESC_PRINT(BGTZ, bgtz, Printer);
+
+        HANDLE_DESC_PRINT(JUMP, j, Printer);
+        HANDLE_DESC_PRINT(CALL, jal, Printer);
+
+        HANDLE_DESC_PRINT(LI, li, Printer);
+        HANDLE_DESC_PRINT(LA, la, Printer);
+        HANDLE_DESC_PRINT(MOVE, move, Printer);
+#undef HANDLE_DESC_PRINT
 
         case DESC_RET.opcode:
             os << "jr $ra";
             break;
-        case DESC_BEQZ.opcode:
-            os << "beqz " << instr.getOperand(0) << ", " << instr.getOperand(1);
-            break;
-        case DESC_JUMP.opcode:
-            os << "j " << instr.getOperand(0);
-            break;
-        case DESC_CALL.opcode:
-            os << "jal " << instr.getOperand(0);
-            break;
 
-        case DESC_LI.opcode:
-            os << "li " << instr.getOperand(0) << ", " << instr.getOperand(1);
-            break;
-        case DESC_LA.opcode:
-            os << "la " << instr.getOperand(0) << ", " << instr.getOperand(1);
-            break;
-        case DESC_MOVE.opcode:
-            os << "move " << instr.getOperand(0) << ", " << instr.getOperand(1);
-            break;
         default:
             UNREACHABLE();
     }
