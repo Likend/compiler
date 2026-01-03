@@ -118,30 +118,31 @@ bool MipsPrinterPass::doInitialization(ir::Module& m) {
                       "    li $v0, 4\n"
                       "    syscall\n"
                       "    jr $ra\n\n";
-            } else if (f.getName() == "putarray") {
-                os << "putarray:\n"
-                      "    li $v0, 1\n"
-                      "    syscall\n"
-                      "    sll $a0, $a0, 2\n"
-                      "    add $k0, $a0, $a1\n"
-                      "    li $a0, 58\n"
-                      "    li $v0, 11\n"
-                      "    syscall\n"
-                      "    move $k1, $a1\n"
-                      "    putarray.1:\n"
-                      "    li $a0, 32\n"
-                      "    li $v0, 11\n"
-                      "    syscall\n"
-                      "    lw $a0, 0($k1)\n"
-                      "    li $v0, 1\n"
-                      "    syscall\n"
-                      "    addi $k1, $k1, 4\n"
-                      "    bne $k0, $k1, putarray.1\n"
-                      "    li $a0, 10\n"
-                      "    li $v0, 11\n"
-                      "    syscall\n"
-                      "    jr $ra\n\n";
             }
+            // else if (f.getName() == "putarray") {
+            //     os << "putarray:\n"
+            //           "    li $v0, 1\n"
+            //           "    syscall\n"
+            //           "    sll $a0, $a0, 2\n"
+            //           "    add $k0, $a0, $a1\n"
+            //           "    li $a0, 58\n"
+            //           "    li $v0, 11\n"
+            //           "    syscall\n"
+            //           "    move $k1, $a1\n"
+            //           "    putarray.1:\n"
+            //           "    li $a0, 32\n"
+            //           "    li $v0, 11\n"
+            //           "    syscall\n"
+            //           "    lw $a0, 0($k1)\n"
+            //           "    li $v0, 1\n"
+            //           "    syscall\n"
+            //           "    addi $k1, $k1, 4\n"
+            //           "    bne $k0, $k1, putarray.1\n"
+            //           "    li $a0, 10\n"
+            //           "    li $v0, 11\n"
+            //           "    syscall\n"
+            //           "    jr $ra\n\n";
+            // }
         } else {
             MachineFunction* mf = module.getMachineFunction(f);
             ASSERT(mf);

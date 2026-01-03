@@ -151,7 +151,7 @@ int main() {
                 new codegen::LinerScanRegisterAllocPass{
                     REG_T0, REG_T1, REG_T2, REG_T3, REG_T4, REG_T5, REG_T6,
                     REG_T7, REG_S0, REG_S1, REG_S2, REG_S3, REG_S4, REG_S5,
-                    REG_S6, REG_S7},
+                    REG_S6, REG_S7, REG_V1, REG_K0, REG_K1},
                 new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
                 new codegen::MIRPrinterPass{mir3_file},
                 new codegen::FillFramePass{},
