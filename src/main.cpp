@@ -24,6 +24,7 @@
 #include "opt/MemToReg.hpp"
 #include "opt/RemoveUnuse.hpp"
 #include "opt/SimplifyCFG.hpp"
+#include "opt/TailDuplicate.hpp"
 
 #ifndef DEBUG_TOKEN_TYPE_NAME
 #define DEBUG_TOKEN_TYPE_NAME
@@ -99,7 +100,8 @@ int main() {
             Visitor visitor{*ast};
             print_symbol_record(visitor.records);
 
-            std::ofstream ir1_file{"llvm_ir.txt", std::ios_base::out};
+            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
+            std::ofstream ir1_file{"llvm_ir1.txt", std::ios_base::out};
             std::ofstream ir2_file{"llvm_ir2.txt", std::ios_base::out};
             std::ofstream mir_file{"mir.txt", std::ios_base::out};
             std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
@@ -109,11 +111,14 @@ int main() {
 
             ir::PassManager pm{
                 new ir::WellFormPass{},
+                new ir::IRPrinterPass{ir_file},
+                new opt::MemToRegPass{},
+                new opt::SimplifyCFGPass{},  // optional
+                new opt::RemoveUnusePass{},
+                new opt::TailDuplicatePass{},
                 new ir::IRPrinterPass{ir1_file},
                 new opt::MemToRegPass{},
                 new ir::IRPrinterPass{ir2_file},
-                new opt::RemoveUnusePass{},
-                new opt::SimplifyCFGPass{},
                 new opt::RemoveUnusePass{},
 
                 new codegen::MachineModuleAnalysisPass{},

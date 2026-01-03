@@ -39,17 +39,19 @@ class User : public Value {
     using op_range           = iterator_range<op_iterator>;
     using const_op_range     = iterator_range<const_op_interator>;
 
-    op_iterator        op_begin() { return operandList.begin(); }
+    // clang-format off
+    op_iterator        op_begin()       { return operandList.begin(); }
     const_op_interator op_begin() const { return operandList.cbegin(); }
-    op_iterator        op_end() { return operandList.end(); }
-    const_op_interator op_end() const { return operandList.cend(); }
-    op_range           operands() { return op_range{op_begin(), op_end()}; }
-    const_op_range     operands() const {
-        return const_op_range{op_begin(), op_end()};
-    }
+    op_iterator        op_end()         { return operandList.end(); }
+    const_op_interator op_end()   const { return operandList.cend(); }
+    op_range           operands()       { return op_range{op_begin(), op_end()}; }
+    const_op_range     operands() const { return const_op_range{op_begin(), op_end()}; }
+    // clang-format on
 
     void dropAllReferences() {
         for (Use& use : operands()) use.set(nullptr);
     }
+
+    void growUses(unsigned newNumUses) { operandList.reserve(newNumUses); }
 };
 }  // namespace ir

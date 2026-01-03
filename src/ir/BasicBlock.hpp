@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iterator>
+
 #include "ir/Instructions.hpp"
 #include "ir/LLVMContext.hpp"
 #include "ir/User.hpp"
@@ -50,17 +52,34 @@ class BasicBlock final : public Value,
               pred_iterator_impl<BasicBlockT, UserIteratorT>, UserIteratorT,
               BasicBlockT> {
        public:
-        BasicBlockT& transform(User& user) const {
+        BasicBlockT& transform(
+            typename std::iterator_traits<UserIteratorT>::value_type& user)
+            const {
             return *dynamic_cast<Instruction&>(user).parent();
         }
     };
 
-    // clang-format off
-    using pred_iterator       = pred_iterator_impl<BasicBlock, user_iterator>;
-    using const_pred_iterator = pred_iterator_impl<const BasicBlock, const_user_iterator>;
-    using pred_range          = iterator_range<pred_iterator>;
-    using const_pred_range    = iterator_range<const_pred_iterator>;
+    struct pred_iterator
+        : iterator_transform<pred_iterator, user_iterator, BasicBlock> {
+       public:
+        BasicBlock& transform(User& user) const {
+            return *dynamic_cast<Instruction&>(user).parent();
+        }
+    };
 
+    struct const_pred_iterator
+        : iterator_transform<const_pred_iterator, const_user_iterator,
+                             const BasicBlock> {
+       public:
+        const BasicBlock& transform(const User& user) const {
+            return *dynamic_cast<const Instruction&>(user).parent();
+        }
+    };
+
+    using pred_range       = iterator_range<pred_iterator>;
+    using const_pred_range = iterator_range<const_pred_iterator>;
+
+    // clang-format off
     pred_iterator       pred_begin()         { return {user_begin()}; }
     const_pred_iterator pred_begin()   const { return {user_begin()}; }
     pred_iterator       pred_end()           { return {user_end()}; }

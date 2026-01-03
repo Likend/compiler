@@ -77,7 +77,10 @@ class Value {
         : public iterator_transform<user_iterator_impl<UserT, UseT>,
                                     use_iterator_impl<UseT>, UserT> {
        public:
-        UserT& transform(Use& u) const { return *u.getUser(); }
+        UserT& transform(
+            typename use_iterator_impl<UseT>::value_type& u) const {
+            return *u.getUser();
+        }
     };
 
    public:

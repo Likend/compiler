@@ -56,7 +56,10 @@ class Type {
 class IntegerType : public Type {
     friend class LLVMContextImpl;
     explicit IntegerType(LLVMContext& c,
-                         unsigned     numBits);  // currently NumBits = 32
+                         unsigned     numBits)  // currently NumBits = 32
+        : Type(c, IntegerTyID) {
+        subclassData = numBits;
+    }
 
    public:
     static IntegerType* get(LLVMContext& c, unsigned NumBits);
@@ -99,7 +102,11 @@ static_assert(sizeof(Type) == sizeof(FunctionType));
 
 class ArrayType : public Type {
     friend class LLVMContextImpl;
-    explicit ArrayType(Type* elemType, size_t elemNum);
+    explicit ArrayType(Type* elemType, size_t elemNum)
+        : Type(elemType->getContext(), ArrayTyID) {
+        containedTys.push_back(elemType);
+        subclassData = elemNum;
+    }
 
    public:
     static ArrayType* get(Type*  elemType,  // support: int
@@ -112,11 +119,16 @@ static_assert(sizeof(Type) == sizeof(ArrayType));
 
 class PointerType : public Type {
     friend class LLVMContextImpl;
-    explicit PointerType(LLVMContext& c, unsigned addrSpace);
+    explicit PointerType(LLVMContext& c, unsigned addrSpace)
+        : Type(c, PointerTyID) {
+        subclassData = addrSpace;
+    }
 
    public:
     PointerType(const PointerType&)            = delete;
     PointerType& operator=(const PointerType&) = delete;
+
+    unsigned getAddrSpace() const { return subclassData; }
 
     static PointerType* get(LLVMContext& c,
                             unsigned     addrSpace);  // addrSpace is unused

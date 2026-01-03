@@ -262,6 +262,17 @@ class Printer {
             printOperand(i->getLHS(), false);
             os << ", ";
             printOperand(i->getRHS(), false);
+        } else if (const auto* i = dynamic_cast<const PHINode*>(inst)) {
+            os << ' ' << i->getType() << ' ';
+            Delimeter deli(", ");
+            for (size_t idx = 0; idx < i->getNumIncomingValues(); idx++) {
+                os << deli();
+                os << '[';
+                printOperand(i->getIncomingValue(idx), false);
+                os << ", ";
+                printOperand(i->getIncomingBlock(idx), false);
+                os << ']';
+            }
         } else {
             UNREACHABLE();
         }

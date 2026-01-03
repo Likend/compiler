@@ -14,11 +14,6 @@ using namespace ir;
 Type* Type::getVoidTy(LLVMContext& c) { return &c.pImpl->voidTy; }
 Type* Type::getLabelTy(LLVMContext& c) { return &c.pImpl->labelTy; }
 
-IntegerType::IntegerType(LLVMContext& c, unsigned numBits)
-    : Type(c, IntegerTyID) {
-    subclassData = numBits;
-}
-
 IntegerType* IntegerType::get(LLVMContext& c, unsigned NumBits) {
     LLVMContextImpl* pImpl = c.pImpl.get();
     auto&            it    = pImpl->intTys[NumBits];
@@ -63,12 +58,6 @@ FunctionType* FunctionType::get(Type*                     returnType,
             .get();
 }
 
-ArrayType::ArrayType(Type* elemType, size_t elemNum)
-    : Type(elemType->getContext(), ArrayTyID) {
-    containedTys.push_back(elemType);
-    subclassData = elemNum;
-}
-
 ArrayType* ArrayType::get(Type* elemType, size_t elemNum) {
     LLVMContextImpl* pImpl = elemType->getContext().pImpl.get();
     auto&            it    = pImpl->arrTyps[std::make_tuple(elemType, elemNum)];
@@ -76,11 +65,6 @@ ArrayType* ArrayType::get(Type* elemType, size_t elemNum) {
         it = std::unique_ptr<ArrayType>(new ArrayType{elemType, elemNum});
     }
     return it.get();
-}
-
-PointerType::PointerType(LLVMContext& c, unsigned addrSpace)
-    : Type(c, PointerTyID) {
-    subclassData = addrSpace;
 }
 
 PointerType* PointerType::get(LLVMContext&                  c,

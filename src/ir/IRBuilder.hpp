@@ -168,13 +168,13 @@ class IRBuilder {
                 return CreateZExt(v, destTy, std::move(name));
         }
     }
-    SExtInst* CreateSExt(Value* v, Type* destTy, std::string name) {
-        auto* inst = new SExtInst{v, destTy, std::move(name)};
+    CastInst* CreateSExt(Value* v, Type* destTy, std::string name) {
+        auto* inst = new CastInst{CastInst::SExt, v, destTy, std::move(name)};
         bb->push_back(inst);
         return inst;
     }
-    ZExtInst* CreateZExt(Value* v, Type* destTy, std::string name) {
-        auto* inst = new ZExtInst{v, destTy, std::move(name)};
+    CastInst* CreateZExt(Value* v, Type* destTy, std::string name) {
+        auto* inst = new CastInst{CastInst::ZExt, v, destTy, std::move(name)};
         bb->push_back(inst);
         return inst;
     }

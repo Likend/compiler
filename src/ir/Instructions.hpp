@@ -1,9 +1,12 @@
 #pragma once
 
+#include <cstddef>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "ir/LLVMContext.hpp"
 #include "ir/Type.hpp"
@@ -25,6 +28,8 @@ class Instruction : public User, public ValueNode<Instruction, BasicBlock> {
 
     virtual bool             isTerminator() const { return false; }
     virtual std::string_view getOpcodeName() const = 0;
+    virtual Instruction*     clone(
+            const std::function<Value*(const Value*)>& vmap_lookup) const = 0;
 };
 
 class UnaryInstruction : public Instruction {
@@ -75,6 +80,13 @@ class BinaryOperator final : public Instruction {
                 UNREACHABLE();
         }
     }
+
+    BinaryOperator* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new BinaryOperator{iType, vmap_lookup(getLHS()),
+                                  vmap_lookup(getRHS()), getType(),
+                                  std::string(getName())};
+    }
 };
 
 class AllocaInst final : public UnaryInstruction {
@@ -99,6 +111,12 @@ class AllocaInst final : public UnaryInstruction {
     Type* getAllocatedType() const { return allocatedType; }
 
     std::string_view getOpcodeName() const override { return "alloca"; }
+
+    AllocaInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new AllocaInst{getAllocatedType(), getType()->getAddrSpace(),
+                              vmap_lookup(getArraySize()), std::string(name)};
+    }
 };
 
 class LoadInst final : public UnaryInstruction {
@@ -115,6 +133,12 @@ class LoadInst final : public UnaryInstruction {
     }
 
     std::string_view getOpcodeName() const override { return "load"; }
+
+    LoadInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new LoadInst{getType(), vmap_lookup(getPointerOperand()),
+                            std::string(name)};
+    }
 };
 
 class StoreInst final : public Instruction {
@@ -137,6 +161,12 @@ class StoreInst final : public Instruction {
         return getPointerOperand()->getType();
     }
     std::string_view getOpcodeName() const override { return "store"; }
+
+    StoreInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new StoreInst{vmap_lookup(getValueOperand()),
+                             vmap_lookup(getPointerOperand())};
+    }
 };
 
 class GetElementPtrInst final : public Instruction {
@@ -169,6 +199,9 @@ class GetElementPtrInst final : public Instruction {
     static Type* getIndexedType(Type*                      pointeeType,
                                 const std::vector<Value*>& idxList);
     static Type* getTypeAtIndex(Type* pointeeType, Value* idx);
+
+    GetElementPtrInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override;
 };
 
 class CmpInst : public Instruction {
@@ -209,6 +242,12 @@ class ICmpInst final : public CmpInst {
                   std::move(name)) {}
 
     std::string_view getOpcodeName() const override { return "icmp"; }
+
+    ICmpInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new ICmpInst{getPredicate(), vmap_lookup(getLHS()),
+                            vmap_lookup(getRHS()), std::string(getName())};
+    }
 };
 
 class CallInst final : public Instruction {
@@ -233,6 +272,9 @@ class CallInst final : public Instruction {
     Value* getCalledOperand() const { return getOperand(getNumOperands() - 1); }
 
     std::string_view getOpcodeName() const override { return "call"; }
+
+    CallInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override;
 };
 
 class TerminatorInst : public Instruction {
@@ -354,6 +396,11 @@ class ReturnInst final : public TerminatorInst {
 
     unsigned    getNumSuccessors() const override { return 0; }
     BasicBlock* getSuccessor(unsigned) const override { UNREACHABLE(); }
+
+    ReturnInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new ReturnInst{getContext(), vmap_lookup(getReturnValue())};
+    }
 };
 
 class BranchInst final : public TerminatorInst {
@@ -386,9 +433,12 @@ class BranchInst final : public TerminatorInst {
 
     unsigned getNumSuccessors() const override { return 1 + isConditional(); }
     BasicBlock* getSuccessor(unsigned i) const override;
+
+    BranchInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override;
 };
 
-class CastInst : public UnaryInstruction {
+class CastInst final : public UnaryInstruction {
    public:
     enum CastOps {
         SExt = 40,
@@ -398,33 +448,121 @@ class CastInst : public UnaryInstruction {
    private:
     CastOps ops;
 
-   protected:
+   public:
     CastInst(CastOps ops, Value* s, Type* ty, std::string name)
         : UnaryInstruction(ty, s), ops(ops) {
         setName(std::move(name));
     }
 
-   public:
     CastOps getOpcode() const { return ops; }
     Type*   getSrcTy() const { return getSrc()->getType(); }
     Type*   getDestTy() const { return getType(); }
     // not llvm
     Value* getSrc() const { return getOperand(0); }
+
+    std::string_view getOpcodeName() const override {
+        switch (ops) {
+            case SExt:
+                return "sext";
+            case ZExt:
+                return "zext";
+        }
+    }
+
+    CastInst* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override {
+        return new CastInst{getOpcode(), vmap_lookup(getSrc()), getType(),
+                            std::string(getName())};
+    }
 };
 
-class SExtInst final : public CastInst {
+class PHINode final : public Instruction {
+    /// The number of operands actually allocated.  NumOperands is
+    /// the number actually in use.
+    std::vector<BasicBlock*> blocksList;
+
+    size_t ReservedSpace;
+
    public:
-    SExtInst(Value* s, Type* ty, std::string name)
-        : CastInst(CastInst::SExt, s, ty, std::move(name)) {}
+    PHINode(Type* ty, size_t numberPreservedValues, std::string name)
+        : Instruction(ty, numberPreservedValues),
+          ReservedSpace(numberPreservedValues) {
+        blocksList.reserve(numberPreservedValues);
+        setName(std::move(name));
+    }
 
-    std::string_view getOpcodeName() const override { return "sext"; }
-};
+    using const_block_iterator = decltype(blocksList)::const_iterator;
 
-class ZExtInst final : public CastInst {
-   public:
-    ZExtInst(Value* s, Type* ty, std::string name)
-        : CastInst(CastInst::ZExt, s, ty, std::move(name)) {}
+    const_block_iterator block_begin() const { return blocksList.begin(); }
+    const_block_iterator block_end() const { return blocksList.end(); }
+    iterator_range<const_block_iterator> blocks() const {
+        return {block_begin(), block_end()};
+    }
 
-    std::string_view getOpcodeName() const override { return "zext"; }
+    op_range       incoming_values() { return operands(); }
+    const_op_range incoming_values() const { return operands(); }
+
+    size_t getNumIncomingValues() const { return getNumOperands(); }
+
+    void   setIncomingValue(size_t i, Value* v) { setOperand(i, v); }
+    Value* getIncomingValue(size_t i) const { return getOperand(i); }
+
+    void setIncomingBlock(size_t i, BasicBlock* bb) { blocksList.at(i) = bb; }
+    BasicBlock* getIncomingBlock(size_t i) const { return blocksList.at(i); }
+
+    void addIncoming(Value* value, BasicBlock* bb) {
+        if (getNumOperands() == ReservedSpace) {
+            ReservedSpace = ReservedSpace + ReservedSpace / 2;
+            if (ReservedSpace < 2) ReservedSpace = 2;
+            growUses(ReservedSpace);
+            blocksList.reserve(ReservedSpace);
+        }
+        setIncomingBlock(getNumOperands() - 1, bb);
+        setIncomingValue(getNumOperands() - 1, value);
+    }
+
+    // Replace every incoming basic block  Old to basic block  New.
+    void replaceIncomingBlockWith(const BasicBlock* Old, BasicBlock* New) {
+        ASSERT_WITH(New && Old, "PHI node got a null basic block!");
+        for (size_t Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
+            if (getIncomingBlock(Op) == Old) setIncomingBlock(Op, New);
+    }
+
+    size_t getBasicBlockIndex(const BasicBlock* bb) const {
+        for (size_t i = 0, e = getNumOperands(); i != e; ++i)
+            if (getIncomingBlock(i) == bb) return i;
+        return -1;
+    }
+
+    Value* getIncomingValueForBlock(const BasicBlock* bb) const {
+        size_t idx = getBasicBlockIndex(bb);
+        ASSERT_WITH(idx != static_cast<size_t>(-1),
+                    "Invalid basic block argument!");
+        return getIncomingValue(idx);
+    }
+
+    Value* removeIncomingValue(size_t idx) {
+        Value* removed = getIncomingValue(idx);
+        operandList[idx].set(nullptr);
+        operandList.erase(op_begin() + static_cast<long long>(idx));
+        blocksList.erase(block_begin() + static_cast<long long>(idx));
+        // TODO maybe delete if empty?
+        return removed;
+    }
+
+    Value* removeIncomingValue(const BasicBlock* bb) {
+        size_t idx = getBasicBlockIndex(bb);
+        ASSERT_WITH(idx != static_cast<size_t>(-1),
+                    "Invalid basic block argument!");
+        return removeIncomingValue(idx);
+    }
+
+    /// 每一个前序基本块都有值到当前 PHI
+    bool isComplete() const;
+
+    std::string_view getOpcodeName() const override { return "phi"; }
+
+    PHINode* clone(
+        const std::function<Value*(const Value*)>& vmap_lookup) const override;
 };
 }  // namespace ir
