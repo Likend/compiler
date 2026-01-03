@@ -48,12 +48,21 @@ bool IRTranslator::runOnMachineFunction(MachineFunction& mf) {
     currentFunction = &mf;
 
     const ir::Function& function = mf.getFunction();
+    if (function.empty()) return false;
 
     bbMap.clear();
     for (const ir::BasicBlock& bb : function) {
         MachineBasicBlock& b =
             currentFunction->emplace_back(std::string(bb.getName()));
         bbMap[&bb] = &b;
+    }
+
+    // get arguments
+    MachineBasicBlock* entry = bbMap.at(&*function.begin());
+    for (const ir::Argument& arg : function.args) {
+        Register vreg = getOrCreateVReg(&arg);
+        entry->emplace_back(DESC_GET_CUR_ARG, RegisterOpKind{vreg},
+                            ImmediateOpKind{arg.getArgNo()});
     }
 
     for (const ir::BasicBlock& bb : function) {
@@ -240,10 +249,7 @@ void IRTranslator::translateCallInst(const ir::CallInst* i) {
 
 Register IRTranslator::prepareReg(const ir::Value* value) {
     if (const auto* arg = dynamic_cast<const ir::Argument*>(value)) {
-        Register vreg = getOrCreateVReg(arg);
-        currentBB->emplace_back(DESC_GET_CUR_ARG, RegisterOpKind{vreg},
-                                ImmediateOpKind{arg->getArgNo()});
-        return vreg;
+        return getVReg(arg);
     } else if (const auto* ci = dynamic_cast<const ir::ConstantInt*>(value)) {
         Register vreg = currentFunction->CreateVReg();
         currentBB->emplace_back(DESC_LI, RegisterOpKind{vreg},

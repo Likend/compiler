@@ -312,7 +312,7 @@ struct LatticeEvalRegReg : LatticeOperatorBaseRegReg {
 
 #define HANDLE_CALC_OPERATOR(name, operator)                 \
     struct Calculate##name {                                 \
-        static int64_t calculate(int64_t lhs, int64_t rhs) { \
+        static int32_t calculate(int32_t lhs, int32_t rhs) { \
             return lhs operator rhs;                         \
         }                                                    \
     }
@@ -333,7 +333,7 @@ HANDLE_CALC_OPERATOR(Sra, >>);
 #undef HANDLE_CALC_OPERATOR
 
 struct CalculateSrl {
-    static int64_t calculate(int64_t lhs, int64_t rhs) {
+    static int64_t calculate(int32_t lhs, int32_t rhs) {
         return static_cast<int64_t>(static_cast<uint64_t>(lhs) >>
                                     static_cast<uint64_t>(rhs));
     }
@@ -404,7 +404,6 @@ struct LatticeEvaluate<DESC_MUL.opcode>
 };
 
 Lattice evaluate(MachineInstr& mi, const LatticeAnalysis& lattices) {
-    // 立即数加载指令 (li $t0, 100)
     switch (mi.getOpcode()) {
 #define HANDLE_DESC_DEF(opcode, name, def, use, other) \
     case opcode:                                       \

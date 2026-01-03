@@ -15,6 +15,7 @@
 #include "codegen/pass/MovePropagation.hpp"
 #include "codegen/pass/RemoveUnuse.hpp"
 #include "codegen/pass/ReplaceRegister.hpp"
+#include "codegen/pass/RewriteLoadStore.hpp"
 #include "codegen/Register.hpp"
 #include "ir/IRPrinter.hpp"
 #include "ir/Pass.hpp"
@@ -118,8 +119,9 @@ int main() {
                 new codegen::IRTranslator{},
                 new codegen::MIRPrinterPass{mir_file},
                 new codegen::ConstantPropagationPass{},
-                new codegen::MIRPrinterPass{mir1_file},
                 new codegen::MovePropagationPass{},
+                new codegen::MIRPrinterPass{mir1_file},
+                new codegen::RewriteLoadStorePass{},
                 new codegen::MIRPrinterPass{mir2_file},
                 new codegen::RemoveUnusePass{},
 
