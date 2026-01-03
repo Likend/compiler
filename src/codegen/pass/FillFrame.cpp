@@ -32,8 +32,10 @@ bool FillFramePass::runOnMachineFunction(MachineFunction& mf) {
     for (const auto& [reg, _] : mf.regInfos) {
         auto i          = static_cast<int64_t>(mf.CreateStackObject(32));
         regToStack[reg] = i;
-        firstBB.emplace(firstInstr, DESC_STORE_FRAME, reg, ImmediateOpKind{i});
-        lastBB.emplace(lastInstr, DESC_LOAD_FRAME, reg, ImmediateOpKind{i});
+        firstBB.emplace(firstInstr, DESC_STORE_FRAME, reg, ImmediateOpKind{i},
+                        ImmediateOpKind{0});
+        lastBB.emplace(lastInstr, DESC_LOAD_FRAME, reg, ImmediateOpKind{i},
+                       ImmediateOpKind{0});
     }
 
     // Replace ret to br
@@ -106,22 +108,24 @@ bool FillFramePass::runOnMachineFunction(MachineFunction& mf) {
                 }
                 case DESC_LOAD_FRAME.opcode: {
                     int64_t     stackIdx      = mi.getOperand(1).getImmediate();
+                    int64_t     loadOffset    = mi.getOperand(2).getImmediate();
                     int64_t     currentOffset = indexToOffset.at(stackIdx);
                     std::string annotation =
                         "Frame"s + std::to_string(stackIdx);
                     mbb.emplace(it, DESC_LW, mi.getOperand(0).getRegister(), sp,
-                                ImmediateOpKind{currentOffset})
+                                ImmediateOpKind{currentOffset + loadOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;
                 }
                 case DESC_STORE_FRAME.opcode: {
                     int64_t     stackIdx      = mi.getOperand(1).getImmediate();
+                    int64_t     storeOffset   = mi.getOperand(2).getImmediate();
                     int64_t     currentOffset = indexToOffset.at(stackIdx);
                     std::string annotation =
                         "Frame"s + std::to_string(stackIdx);
                     mbb.emplace(it, DESC_SW, mi.getOperand(0).getRegister(), sp,
-                                ImmediateOpKind{currentOffset})
+                                ImmediateOpKind{currentOffset + storeOffset})
                         ->addAnnotation(annotation);
                     it = mbb.erase(it);
                     break;

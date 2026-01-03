@@ -54,9 +54,9 @@ bool ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
 
                     op.ChangeTo({RegisterOpKind{tempReg}});
                     mf.regInfos[tempReg].addUse(op);
-                    IntrusiveIterator<MachineInstr> add{
-                        new MachineInstr{DESC_LOAD_FRAME, tempReg,
-                                         ImmediateOpKind{stackObj->second}}};
+                    IntrusiveIterator<MachineInstr> add{new MachineInstr{
+                        DESC_LOAD_FRAME, tempReg,
+                        ImmediateOpKind{stackObj->second}, ImmediateOpKind{0}}};
                     add.insert_into(it);
                 }
             }
@@ -69,9 +69,9 @@ bool ReplaceRegisterPass::runOnMachineFunction(MachineFunction& mf) {
 
                     op.ChangeTo({RegisterOpKind{tempReg}});
                     mf.regInfos[tempReg].addDef(op);
-                    IntrusiveIterator<MachineInstr> add{
-                        new MachineInstr{DESC_STORE_FRAME, tempReg,
-                                         ImmediateOpKind{stackObj->second}}};
+                    IntrusiveIterator<MachineInstr> add{new MachineInstr{
+                        DESC_STORE_FRAME, tempReg,
+                        ImmediateOpKind{stackObj->second}, ImmediateOpKind{0}}};
                     add.insert_into(it);
                 }
             }
