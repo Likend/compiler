@@ -54,7 +54,8 @@ void print_error_infos() {
     std::cout << "Error count: " << error_infos.size() << std::endl;
     std::stable_sort(error_infos.begin(), error_infos.end(),
                      [](const ErrorInfo& a, const ErrorInfo& b) {
-                         if (a.token.line < b.token.line) return true;
+                         if (a.token.line != b.token.line)
+                             return a.token.line < b.token.line;
                          return a.token.col < b.token.col;
                      });
     std::ofstream output{"./error.txt", std::ios_base::out};
@@ -104,61 +105,63 @@ int main() {
             Visitor visitor{*ast};
             print_symbol_record(visitor.records);
 
-            std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
-            std::ofstream ir1_file{"llvm_ir1.txt", std::ios_base::out};
-            std::ofstream ir2_file{"llvm_ir2.txt", std::ios_base::out};
-            std::ofstream ir3_file{"llvm_ir3.txt", std::ios_base::out};
-            std::ofstream ir4_file{"llvm_ir4.txt", std::ios_base::out};
-            std::ofstream ir5_file{"llvm_ir5.txt", std::ios_base::out};
-            std::ofstream mir_file{"mir.txt", std::ios_base::out};
-            std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
-            std::ofstream mir2_file{"mir2.txt", std::ios_base::out};
-            std::ofstream mir3_file{"mir3.txt", std::ios_base::out};
-            std::ofstream mips_file{"mips.txt", std::ios_base::out};
+            if (error_infos.empty()) {
+                std::ofstream ir_file{"llvm_ir.txt", std::ios_base::out};
+                std::ofstream ir1_file{"llvm_ir1.txt", std::ios_base::out};
+                std::ofstream ir2_file{"llvm_ir2.txt", std::ios_base::out};
+                std::ofstream ir3_file{"llvm_ir3.txt", std::ios_base::out};
+                std::ofstream ir4_file{"llvm_ir4.txt", std::ios_base::out};
+                std::ofstream ir5_file{"llvm_ir5.txt", std::ios_base::out};
+                std::ofstream mir_file{"mir.txt", std::ios_base::out};
+                std::ofstream mir1_file{"mir1.txt", std::ios_base::out};
+                std::ofstream mir2_file{"mir2.txt", std::ios_base::out};
+                std::ofstream mir3_file{"mir3.txt", std::ios_base::out};
+                std::ofstream mips_file{"mips.txt", std::ios_base::out};
 
-            ir::PassManager pm{
-                new ir::WellFormPass{},
-                new opt::MemToRegPass{},
-                new ir::IRPrinterPass{ir_file},
-                new opt::ConstantPropagationPass{},
-                new ir::IRPrinterPass{ir1_file},
-                new opt::SimplifyCFGPass{},
-                new opt::RemoveUnusePass{},
-                new opt::FunctionInlinePass{},
-                new opt::SimplifyCFGPass{},
-                new ir::IRPrinterPass{ir2_file},
-                new opt::TailDuplicatePass{},
-                new opt::MemToRegPass{},
-                new ir::IRPrinterPass{ir3_file},
-                new opt::SubexprEliminationPass{},
-                new ir::IRPrinterPass{ir4_file},
-                new opt::ConstantPropagationPass{},
-                new ir::IRPrinterPass{ir5_file},
-                new opt::RemoveUnusePass{},
+                ir::PassManager pm{
+                    new ir::WellFormPass{},
+                    new opt::MemToRegPass{},
+                    new ir::IRPrinterPass{ir_file},
+                    new opt::ConstantPropagationPass{},
+                    new ir::IRPrinterPass{ir1_file},
+                    new opt::SimplifyCFGPass{},
+                    new opt::RemoveUnusePass{},
+                    new opt::FunctionInlinePass{},
+                    new opt::SimplifyCFGPass{},
+                    new ir::IRPrinterPass{ir2_file},
+                    new opt::TailDuplicatePass{},
+                    new opt::MemToRegPass{},
+                    new ir::IRPrinterPass{ir3_file},
+                    new opt::SubexprEliminationPass{},
+                    new ir::IRPrinterPass{ir4_file},
+                    new opt::ConstantPropagationPass{},
+                    new ir::IRPrinterPass{ir5_file},
+                    new opt::RemoveUnusePass{},
 
-                new codegen::MachineModuleAnalysisPass{},
-                new codegen::IRTranslator{},
-                new codegen::MIRPrinterPass{mir_file},
-                new codegen::ConstantPropagationPass{},
-                new codegen::MovePropagationPass{},
-                new codegen::RewriteLoadStorePass{},
-                new codegen::MIRPrinterPass{mir1_file},
-                new codegen::RewriteBranchPass{},
-                new codegen::MIRPrinterPass{mir2_file},
-                new codegen::RemoveUnusePass{},
+                    new codegen::MachineModuleAnalysisPass{},
+                    new codegen::IRTranslator{},
+                    new codegen::MIRPrinterPass{mir_file},
+                    new codegen::ConstantPropagationPass{},
+                    new codegen::MovePropagationPass{},
+                    new codegen::RewriteLoadStorePass{},
+                    new codegen::MIRPrinterPass{mir1_file},
+                    new codegen::RewriteBranchPass{},
+                    new codegen::MIRPrinterPass{mir2_file},
+                    new codegen::RemoveUnusePass{},
 
-                // not ssa from bellow
-                new codegen::LinerScanRegisterAllocPass{
-                    REG_T0, REG_T1, REG_T2, REG_T3, REG_T4, REG_T5, REG_T6,
-                    REG_T7, REG_S0, REG_S1, REG_S2, REG_S3, REG_S4, REG_S5,
-                    REG_S6, REG_S7, REG_V1, REG_K0, REG_K1},
-                new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
-                new codegen::MIRPrinterPass{mir3_file},
-                new codegen::FillFramePass{},
-                new codegen::RemoveJumpPass{},
-                new codegen::MipsPrinterPass{mips_file},
-            };
-            visitor.runPass(pm);
+                    // not ssa from bellow
+                    new codegen::LinerScanRegisterAllocPass{
+                        REG_T0, REG_T1, REG_T2, REG_T3, REG_T4, REG_T5, REG_T6,
+                        REG_T7, REG_S0, REG_S1, REG_S2, REG_S3, REG_S4, REG_S5,
+                        REG_S6, REG_S7, REG_V1, REG_K0, REG_K1},
+                    new codegen::ReplaceRegisterPass{REG_T8, REG_T9},
+                    new codegen::MIRPrinterPass{mir3_file},
+                    new codegen::FillFramePass{},
+                    new codegen::RemoveJumpPass{},
+                    new codegen::MipsPrinterPass{mips_file},
+                };
+                visitor.runPass(pm);
+            }
         }
         print_error_infos();
 

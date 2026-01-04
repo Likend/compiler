@@ -331,7 +331,6 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                                              alloc_ptr);
                         if (const_flag) const_values.push_back(*const_int);
                     } else {
-                        ASSERT(!const_flag);
                         builder->CreateStore(
                             init_evals[0].exp->rvalue(*builder), alloc_ptr);
                     }

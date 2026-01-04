@@ -71,8 +71,10 @@ std::ostream& operator<<(std::ostream& os, const SymbolType& symbol_type) {
     }
     if (symbol_type.is_array) os << "Array";
     if (symbol_type.is_function) os << "Func";
+#ifndef NDEBUG
     if (symbol_type.array_count) {
         os << '[' << *symbol_type.array_count << ']';
     }
+#endif
     return os;
 }
