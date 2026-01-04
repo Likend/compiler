@@ -250,8 +250,7 @@ bool rewriteInstruction(MachineInstr& mi, const LatticeAnalysis& lattices) {
     case opcode:                                       \
         return RewriteInstruction<opcode>{mi, lattices}();
 #include "codegen/DescDefs.hpp"
-        default:
-            UNREACHABLE();
+        DEFAULT_UNREACHABLE();
     }
 }
 
@@ -439,7 +438,6 @@ Lattice evaluate(MachineInstr& mi, const LatticeAnalysis& lattices) {
     case opcode:                                       \
         return LatticeEvaluate<opcode>{mi, lattices}()
 #include "codegen/DescDefs.hpp"
-        default:
-            UNREACHABLE();
+        DEFAULT_UNREACHABLE();
     }
 }

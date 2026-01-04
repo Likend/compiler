@@ -1,5 +1,8 @@
 #include "ir/Pass.hpp"
 
+#include <exception>
+#include <iostream>
+
 #include "ir/Module.hpp"
 
 using namespace ir;
@@ -14,9 +17,16 @@ bool FunctionPass::runOnModule(Module& module) {
 
 void PassManager::run(Module& module) {
     for (auto& pass : passes) {
-        pass->doInitialization(module);
-        pass->runOnModule(module);
-        pass->doFinalization(module);
+        try {
+            pass->doInitialization(module);
+            pass->runOnModule(module);
+            pass->doFinalization(module);
+        } catch (std::exception& e) {
+            std::cerr << "Pass [" << typeid(*pass).name() << "] failed!"
+                      << std::endl
+                      << "Message: " << e.what() << std::endl;
+            throw;
+        }
     }
 }
 

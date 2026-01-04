@@ -54,6 +54,7 @@ struct InstructionHasher {
                     combine(l);
                     combine(r);
                     break;
+                    DEFAULT_UNREACHABLE();
             }
         }
 

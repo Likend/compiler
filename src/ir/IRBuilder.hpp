@@ -166,6 +166,7 @@ class IRBuilder {
                 return CreateSExt(v, destTy, std::move(name));
             case CastInst::ZExt:
                 return CreateZExt(v, destTy, std::move(name));
+                DEFAULT_UNREACHABLE();
         }
     }
     CastInst* CreateSExt(Value* v, Type* destTy, std::string name) {

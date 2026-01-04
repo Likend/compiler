@@ -476,6 +476,7 @@ class CastInst final : public UnaryInstruction {
                 return "sext";
             case ZExt:
                 return "zext";
+                DEFAULT_UNREACHABLE();
         }
     }
 

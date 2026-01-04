@@ -138,8 +138,7 @@ ir::Value* BinaryOpIntExp::rvalue(ir::IRBuilder& builder) {
             auto* v = builder.CreateICmpNE(l, r, "ne");
             return builder.CreateZExt(v, builder.getInt32Ty(), "ext");
         }
-        default:
-            UNREACHABLE();
+        DEFAULT_UNREACHABLE();
     }
 }
 

@@ -30,3 +30,7 @@ template <typename... Arg>
 #define ASSERT(x) ASSERT_WITH(x, "Assert failed!")
 
 #define UNREACHABLE() ASSERT_WITH(false, "Unreachable!");
+
+#define DEFAULT_UNREACHABLE() \
+    default:                 \
+        UNREACHABLE()

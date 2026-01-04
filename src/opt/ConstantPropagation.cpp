@@ -72,6 +72,7 @@ Lattice evaluate(Instruction* inst, LatticeAnalysis& lattices) {
             case BinaryOperator::SRem:
                 return (r != 0) ? Lattice{Lattice::Constant, l % r}
                                 : Lattice{Lattice::Bottom};
+                DEFAULT_UNREACHABLE();
         }
     }
 
@@ -99,6 +100,7 @@ Lattice evaluate(Instruction* inst, LatticeAnalysis& lattices) {
             case CmpInst::ICMP_SGE: res = (l >= r); break;
             case CmpInst::ICMP_SLT: res = (l <  r); break;
             case CmpInst::ICMP_SLE: res = (l <= r); break;
+            DEFAULT_UNREACHABLE();
         }
         // clang-format on
         return {Lattice::Constant, res ? 1 : 0};
@@ -113,6 +115,7 @@ Lattice evaluate(Instruction* inst, LatticeAnalysis& lattices) {
             case CastInst::SExt:  // 目前没有 SExt
             case CastInst::ZExt:
                 return src;
+                DEFAULT_UNREACHABLE();
         }
     }
 

@@ -126,8 +126,7 @@ void IRTranslator::translateBinaryOperator(const ir::BinaryOperator* i) {
         case ir::BinaryOperator::Xor:
             desc = &DESC_XOR;
             break;
-        default:
-            UNREACHABLE();
+            DEFAULT_UNREACHABLE();
     }
     Register lhs = prepareReg(i->getLHS());
     Register rhs = prepareReg(i->getRHS());
@@ -155,6 +154,7 @@ void IRTranslator::translateICmpInst(const ir::ICmpInst* i) {
         case ir::CmpInst::ICMP_SLE:
             desc = &DESC_SLE;
             break;
+            DEFAULT_UNREACHABLE();
     }
     Register lhs = prepareReg(i->getLHS());
     Register rhs = prepareReg(i->getRHS());
