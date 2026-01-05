@@ -11,6 +11,7 @@
 #include "util/IntrusiveList.hpp"
 
 using namespace opt;
+using namespace ir;
 
 template <typename Range>
 static typename Range::value_type* getSingleItem(const Range& rg) {
@@ -37,39 +38,40 @@ static typename Range::value_type* getUniqueItem(const Range& rg) {
     return item;
 }
 
-static bool RemoveUnreachableBlocks(ir::Function& f) {
-    bool changed = false;
+static bool RemoveUnreachableBlocks(Function& f) {
+    // find reachable branches
+    std::unordered_set<BasicBlock*> reachable;
+    std::queue<BasicBlock*>         worklist;
+    worklist.push(&f.front());
+    reachable.insert(&f.front());
 
-    std::unordered_set<ir::BasicBlock*> reachable;
-    std::queue<ir::BasicBlock*>         worklist;
-
-    ir::BasicBlock* bb = &f.getEntryBlock();
-    worklist.push(bb);
     do {
-        bb = worklist.front();
-        reachable.insert(bb);
+        BasicBlock* bb = worklist.front();
         worklist.pop();
-        for (ir::BasicBlock& successor : bb->successors()) {
-            if (reachable.find(&successor) == reachable.end())
-                worklist.push(&successor);
+
+        for (BasicBlock& succ : bb->successors()) {
+            if (reachable.count(&succ) == 0) {
+                worklist.push(&succ);
+                reachable.insert(&succ);
+            }
         }
     } while (!worklist.empty());
 
-    if (reachable.size() == f.size()) return changed;
+    bool changed = false;
 
-    ASSERT(reachable.size() < f.size());
-
-    for (ir::Function::iterator it = f.begin(); it != f.end();) {
-        ir::BasicBlock& bb = *it;
-        if (reachable.find(&bb) != reachable.end()) {
-            ++it;
-            continue;
+    for (auto bbIt = f.begin(); bbIt != f.end();) {
+        BasicBlock& bb = *bbIt++;
+        if (reachable.count(&bb) == 0) {
+            for (auto instIt = bb.begin(); instIt != bb.end();) {
+                Instruction& inst = *instIt;
+                inst.replaceAllUsesWith(PoisonValue::get(inst.getType()));
+                inst.dropAllReferences();
+                instIt = bb.erase(instIt);
+            }
+            bb.replaceAllUsesWith(PoisonValue::get(bb.getType()));
+            f.erase(bb);
+            changed = true;
         }
-        for (ir::Instruction& inst : bb) {
-            inst.dropAllReferences();
-        }
-        it      = f.erase(it);
-        changed = true;
     }
 
     return changed;
@@ -77,9 +79,9 @@ static bool RemoveUnreachableBlocks(ir::Function& f) {
 
 /// Attempts to merge a block into its predecessor, if there is only one
 /// predecessor and there if only one successor of the predecessor.
-static bool MergeBlockIntoPredecessor(ir::BasicBlock* bb) {
+static bool MergeBlockIntoPredecessor(BasicBlock* bb) {
     // Can't merge if there are multiple predecessors, or no predecessors.
-    ir::BasicBlock* pred = getUniqueItem(bb->predecessors());
+    BasicBlock* pred = getUniqueItem(bb->predecessors());
     if (!pred) return false;
 
     // Don't break self-loops.
@@ -110,7 +112,7 @@ static bool MergeBlockIntoPredecessor(ir::BasicBlock* bb) {
     return false;
 }
 
-static bool simplifyOnce(ir::BasicBlock* bb) {
+static bool simplifyOnce(BasicBlock* bb) {
     bool changed = false;
     ASSERT_WITH(bb && bb->parent(), "Block not embedded in function!");
     ASSERT_WITH(bb->getTerminator(), "Degenerate basic block encountered!");
@@ -121,7 +123,7 @@ static bool simplifyOnce(ir::BasicBlock* bb) {
     if ((bb->pred_empty() && bb != &bb->parent()->getEntryBlock()) ||
         getSingleItem(bb->predecessors()) == bb) {
         // Delete dead block
-        IntrusiveIterator<ir::BasicBlock> it{*bb};
+        IntrusiveIterator<BasicBlock> it{*bb};
         bb->parent()->erase(it);
         return true;
     }
@@ -137,8 +139,8 @@ static bool simplifyOnce(ir::BasicBlock* bb) {
 
     // 指令下沉
 
-    // ir::TerminatorInst* terminator = bb->getTerminator();
-    // if (auto* i = dynamic_cast<ir::BranchInst*>(terminator)) {
+    // TerminatorInst* terminator = bb->getTerminator();
+    // if (auto* i = dynamic_cast<BranchInst*>(terminator)) {
     //     changed |= simplifyBranch(i);
     // }
 
@@ -146,7 +148,7 @@ static bool simplifyOnce(ir::BasicBlock* bb) {
     return changed;
 }
 
-static bool simplifyCFG(ir::BasicBlock* bb) {
+static bool simplifyCFG(BasicBlock* bb) {
     bool changed = false;
     bool resimplfy;
     do {
@@ -156,14 +158,14 @@ static bool simplifyCFG(ir::BasicBlock* bb) {
     return changed;
 }
 
-static bool iterativelySimplifyCFG(ir::Function& f) {
+static bool iterativelySimplifyCFG(Function& f) {
     bool Changed     = false;
     bool LocalChange = true;
 
     while (LocalChange) {
         LocalChange = false;
-        for (ir::Function::iterator bbit = f.begin(); bbit != f.end();) {
-            ir::BasicBlock& bb = *bbit++;
+        for (Function::iterator bbit = f.begin(); bbit != f.end();) {
+            BasicBlock& bb = *bbit++;
             if (simplifyCFG(&bb)) {
                 LocalChange = true;
             }
@@ -173,7 +175,7 @@ static bool iterativelySimplifyCFG(ir::Function& f) {
     return Changed;
 }
 
-bool SimplifyCFGPass::runOnFunction(ir::Function& f) {
+bool SimplifyCFGPass::runOnFunction(Function& f) {
     if (f.empty()) return false;
 
     bool changed = false;
