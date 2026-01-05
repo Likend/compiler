@@ -1,5 +1,6 @@
 #include "opt/ConstantPropagation.hpp"
 
+#include <limits>
 #include <queue>
 
 #include "ir/BasicBlock.hpp"
@@ -67,11 +68,15 @@ Lattice evaluate(Instruction* inst, LatticeAnalysis& lattices) {
             case BinaryOperator::Mul:
                 return {Lattice::Constant, l * r};
             case BinaryOperator::SDiv:
-                return (r != 0) ? Lattice{Lattice::Constant, l / r}
-                                : Lattice{Lattice::Bottom};
+                return (r == 0 ||
+                        (l == std::numeric_limits<int32_t>::min() && r == -1))
+                           ? Lattice{Lattice::Bottom}
+                           : Lattice{Lattice::Constant, l / r};
             case BinaryOperator::SRem:
-                return (r != 0) ? Lattice{Lattice::Constant, l % r}
-                                : Lattice{Lattice::Bottom};
+                return (r == 0 ||
+                        (l == std::numeric_limits<int32_t>::min() && r == -1))
+                           ? Lattice{Lattice::Bottom}
+                           : Lattice{Lattice::Constant, l % r};
                 DEFAULT_UNREACHABLE();
         }
     }

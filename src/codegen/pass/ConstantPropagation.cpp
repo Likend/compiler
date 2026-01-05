@@ -1,6 +1,7 @@
 #include "codegen/pass/ConstantPropagation.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <queue>
 #include <unordered_map>
 
@@ -405,6 +406,11 @@ struct LatticeEvaluate<DESC_SDIV.opcode>
         LatticeEvaluate<DESC_SDIV.opcode>>::LatticeEvalRegReg;
 
     Lattice operator()() {
+        // 防止未定义行为: -2147483648 / -1; x / 0
+        if (l1.type == Lattice::Constant &&
+            l1.constant == std::numeric_limits<int32_t>::min() &&
+            l2.type == Lattice::Constant && l2.constant == -1)
+            return {Lattice::Bottom};
         if (l2.type == Lattice::Constant && l2.constant == 0)
             return {Lattice::Bottom};
         if (l1.type == Lattice::Constant && l1.constant == 0)
@@ -422,6 +428,11 @@ struct LatticeEvaluate<DESC_SREM.opcode>
         LatticeEvaluate<DESC_SREM.opcode>>::LatticeEvalRegReg;
 
     Lattice operator()() {
+        // 防止未定义行为: -2147483648 / -1; x / 0
+        if (l1.type == Lattice::Constant &&
+            l1.constant == std::numeric_limits<int32_t>::min() &&
+            l2.type == Lattice::Constant && l2.constant == -1)
+            return {Lattice::Bottom};
         if (l2.type == Lattice::Constant && l2.constant == 0)
             return {Lattice::Bottom};
         if (l1.type == Lattice::Constant && l1.constant == 0)
