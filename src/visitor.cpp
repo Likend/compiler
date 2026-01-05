@@ -336,6 +336,11 @@ void Visitor::invoke_var_def(const ASTNode& node, bool const_flag,
                     }
                 }
             }
+        } else {
+            if (!is_array) {
+                builder->CreateStore(builder->getInt32(0), alloc_ptr);
+                // 由于没有 PHI, 上一行能避免 Men2Reg 优化错误
+            }
         }
     }
 
