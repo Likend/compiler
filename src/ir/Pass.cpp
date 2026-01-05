@@ -22,7 +22,9 @@ void PassManager::run(Module& module) {
             pass->runOnModule(module);
             pass->doFinalization(module);
         } catch (std::exception& e) {
-            std::cerr << "Pass [" << typeid(*pass).name() << "] failed!"
+            // typeid(*pass).name() cause warning, we use a reference
+            auto& ref = *pass;
+            std::cerr << "Pass [" << typeid(ref).name() << "] failed!"
                       << std::endl
                       << "Message: " << e.what() << std::endl;
             throw;
