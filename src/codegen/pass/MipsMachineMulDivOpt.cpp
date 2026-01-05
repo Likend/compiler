@@ -21,7 +21,7 @@ using namespace codegen;
 std::vector<MultiplyOptimizer::Term>
 MultiplyOptimizer::findCanonicalSignedDigit(int64_t c) {
     std::vector<Term> results;
-    while (c != 0 && results.size() < 3) {
+    while (c != 0 && results.size() < 64) {
         // 找到最接近 C 的 2^a
         int     a    = static_cast<int>(std::round(std::log2(std::abs(c))));
         int64_t pow2 = 1LL << a;
