@@ -260,6 +260,8 @@ Register IRTranslator::prepareReg(const ir::Value* value) {
         Register vreg = currentFunction->CreateVReg();
         currentBB->emplace_back(DESC_LA, vreg, GlobalValueOpKind{gv, 0});
         return vreg;
+    } else if (dynamic_cast<const ir::PoisonValue*>(value)) {
+        return REG_ZERO;
     } else {
         return getVReg(value);
     }
