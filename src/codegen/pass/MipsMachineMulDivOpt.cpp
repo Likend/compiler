@@ -78,8 +78,7 @@ void MultiplyOptimizer::emitMipsMulChain(Register dest, Register src,
 bool MultiplyOptimizer::emitOpt() {
     std::vector<Term> terms = findCanonicalSignedDigit(imm);
     if (terms.size() <= 3) {
-        emitMipsMulChain(mi.getOperand(0).getRegister(),
-                         mi.getOperand(1).getRegister(), terms);
+        emitMipsMulChain(dest, src, terms);
         return true;
     } else {
         // Register liReg = mf.CreateVReg();
