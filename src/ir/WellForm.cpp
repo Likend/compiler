@@ -1,5 +1,6 @@
 #include "ir/WellForm.hpp"
 
+#include "ir/Constants.hpp"
 #include "ir/Function.hpp"
 
 using namespace ir;
@@ -14,7 +15,7 @@ static bool RemoveDuplicateTerminator(ir::BasicBlock* bb) {
     ++it;
     if (it == bb->end()) return false;
     for (; it != bb->end();) {
-        ASSERT(it->use_empty());
+        it->replaceAllUsesWith(PoisonValue::get(it->getType()));
         it->dropAllReferences();
         it = bb->erase(it);
     }
