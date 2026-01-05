@@ -12,6 +12,8 @@ using namespace ir;
 using namespace opt;
 
 bool RemoveUnusePass::runOnFunction(Function& f) {
+    if (f.empty()) return false;
+
     bool changed = RemoveUnreachableBranch(f);
 
     std::unordered_set<Instruction*> worklist;
@@ -47,21 +49,20 @@ bool RemoveUnusePass::runOnFunction(Function& f) {
 }
 
 bool RemoveUnusePass::RemoveUnreachableBranch(Function& f) {
-    if (f.empty()) return false;
-
     // find reachable branches
     std::unordered_set<BasicBlock*> reachable;
     std::queue<BasicBlock*>         worklist;
     worklist.push(&f.front());
+    reachable.insert(&f.front());
 
     do {
         BasicBlock* bb = worklist.front();
         worklist.pop();
-        reachable.insert(bb);
 
         for (BasicBlock& succ : bb->successors()) {
             if (reachable.count(&succ) == 0) {
                 worklist.push(&succ);
+                reachable.insert(&succ);
             }
         }
     } while (!worklist.empty());
